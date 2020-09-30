@@ -3,9 +3,31 @@
 
 const mongoose = require('mongoose');
 
-mongoose.connect('mongodb://localhost/users_test');
+// execute only once. Once connected, call done.
+before((done)=> {
+// two options passed to mongoose connect is to not show the depreciation warning.
+mongoose.connect('mongodb://localhost/users_test', { useNewUrlParser: true, useUnifiedTopology: true });
 mongoose.connection
-        .once('open', ()=>{ console.log('Good to go')})
+        .once('open', ()=>{ 
+            console.log('Good to go');
+            done()
+        })
         .on('error', (error)=> {
             console.warn('Warning', error)
         });
+
+
+})
+
+
+// below function will run before each test run (describe block)
+
+
+// beforeEach accepts a function that accepts a cb. 
+beforeEach((done)=>{
+    // drop accepts a call back function once asyc part is done.
+    mongoose.connection.collections.users.drop(()=>{
+        // run tests now.
+        done();
+    });
+})

@@ -12,12 +12,17 @@ describe('Creating Records', ()=>{
         assert(1+1 === 2 );
     });
 
-    it('saves a user',()=>{
+    it('saves a user',(done)=>{
 
         const joe = new User({name: 'Joe'}); // does not save to db
-        joe.save();
+        joe.save()
+            .then(()=>{
+                //isNew property on model will be true if not saved to db
+                assert(joe.isNew === false)
+                done();
+            })
 
-    })
+    });
 
 
 
