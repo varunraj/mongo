@@ -14,11 +14,11 @@ describe('Creating Records', ()=>{
 
     it('saves a user',(done)=>{
 
-        const joe = new User({name: 'Joe'}); // does not save to db
-        joe.save()
+        const rob = new User({name: 'Rob'}); // does not save to db
+        rob.save()
             .then(()=>{
                 //isNew property on model will be true if not saved to db
-                assert(joe.isNew === false)
+                assert(rob.isNew === false)
                 done();
             })
 

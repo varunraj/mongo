@@ -23,8 +23,8 @@ mongoose.connection
 // below function will run before each test run (describe block)
 
 
-// beforeEach accepts a function that accepts a cb. 
-beforeEach((done)=>{
+// afterEach describe block run below code accepts a function that accepts a cb. 
+afterEach((done)=>{
     // drop accepts a call back function once asyc part is done.
     mongoose.connection.collections.users.drop(()=>{
         // run tests now.
