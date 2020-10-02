@@ -46,6 +46,26 @@ describe('Updating Records', ()=>{
         
     })
 
+    // below ones are class based updates
 
+    it('A model class can update',async ()=>{
+        await User.update({name:"Joe"}, {name:"Alex"})
+        const users = await User.find({name:"Alex"})
+        assertName(users);
+
+    })
+
+    it('A model class can update one record', async()=>{
+        await User.findOneAndUpdate({name:"Joe"}, {name:"Alex"})
+        const users = await User.find({name:"Alex"})
+        assertName(users);
+    })
+
+    it('A model class can find a record with id and update', async()=>{
+        await User.findByIdAndUpdate(joe._id, {name:"Alex"})
+        const users = await User.find({name:"Alex"})
+        assertName(users);
+    })
+    
 
 })
