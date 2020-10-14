@@ -14,7 +14,7 @@ describe('Updating Records', ()=>{
 
 
     beforeEach(async ()=> {
-        joe = new User ({name: "Joe", postCount:0})
+        joe = new User ({name: "Joe", likes:0})
         await joe.save();
             
     });
@@ -71,11 +71,11 @@ describe('Updating Records', ()=>{
     // Mongo Update Operators - > use modifiers in conjuction with updates
     // send update instructions for mongo instead of getting data to application
 
-    it('A user can have thier post count incremented by 1', async ()=>{
+    it('A user can have thier like count incremented by 1', async ()=>{
 
-        await User.update({name:'Joe'},{ $inc: {postCount:1}})
+        await User.update({name:'Joe'},{ $inc: {likes:1}})
         const user = await User.findOne({name:'Joe'})
-        assert(user.postCount === 1);
+        assert(user.likes === 1);
 
 
     })

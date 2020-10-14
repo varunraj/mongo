@@ -3,7 +3,7 @@ const PostSchema = require('./post')
 
 const Schema = mongoose.Schema;
 
-const userModel = new Schema({
+const userSchema = new Schema({
     name: {
         type:String,
         validate: {
@@ -12,11 +12,19 @@ const userModel = new Schema({
         },
         required: [true, 'name is required']  
     },
-    postCount:Number,
+    likes:Number,
     posts:[PostSchema]
 }) 
 
-const User = mongoose.model('user', userModel);
+// add a virual field ;postCount is not a field in db rather it is a
+// computer field on the fly.
+// We need to pass a function with funciton keyword instead of fat arrow here
+// if we use fat arrow, this keyword will bind to the file and not the instance of collection.
+userSchema.virtual('postCount').get( function(){
+   return this.posts.length;
+});
+
+const User = mongoose.model('user', userSchema);
 
 module.exports = User;
 
