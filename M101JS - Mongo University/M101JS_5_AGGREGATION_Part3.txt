@@ -1,0 +1,232 @@
+UNWIND
+=======
+	Unwind phase is used to take our the elements within an array and put it outside. Because we cannot do a grouping if they are with in an array.
+	
+	{a:1, b:2, c:['apple',"pear","orange"].
+
+	If we $unwind operation on c, you will get below docs
+	
+	{a:1, b:2, c:'apple'}
+	{a:1, b:2, c:'pear'}
+	{a:1, b:2, c:'orange'}
+	
+	Now we can do other operations on the resut wil group, sort etc.
+	
+	Example: Take the example of blog post where each post have several tags. Let us unwind the tags to find out how many times a tag appears across all posts and show the top 10 popular tags.
+	
+	db.posts.aggergate([
+					// unwind by tags
+					{
+						$unwind:{"$tags"}	
+					},
+					//Now group by tags and count how many times each tag is across all posts. 
+					{
+						$group:{
+								"_id":"$tags",
+								count:{$sum:1}
+								}
+					},
+
+					// Now sort the result to find the most popular tag
+					{
+						$sort:{	"count":-1}
+					},
+					
+					// Show me the top 10 popular
+					
+					{
+						$limit:10
+					},
+					// change the name of _id to tags using project.
+					
+					{
+						$project:{
+									_id:0,
+									tags:"$_id",
+									count:1
+								}			
+					}
+					
+					]);
+	
+	How you can do the reverse of unwind ?
+	---------------------------------------
+	Using the push operator. Use the grouping phase with the key before unwind ( a:1 and b: 1 in the first example) and do a push on c. 'addToSet' can also be used if the original array had unique values for the unwinded property.
+
+	
+	
+DOUBLE UNWIND:
+==============
+		Sometimes you will have an array across multiple prooperies,  that is when you want to do double unwind. Take the example of below dataset.
+		
+		{
+			_id: ObjectId ("asdasdasd"),
+			name: "Chino Pants",
+			sizes: [
+						"32x32",
+						"31x30",
+						"36x30"
+					],
+			colors: [
+						"navy",
+						"white",
+						"orange",
+						"blue"
+					]
+		}
+		
+		How we can find if there is a color available for a particular size.
+		
+		db.inventory.aggregate([
+										{$unwind: "$sizes"},
+										{$unwind: "$colors"}
+										{$group:
+												{
+													'_id': {	
+																size:"$sizes",
+																color:"$colors"
+															}	
+													count: { $sum:1 }		
+												}
+										}		
+								])
+								
+		
+		How to reverse the effect of two unwinds?
+		------------------------------------------
+		It can be done using two pushes. See below how we can reverse the unwind for the previous example
+		
+		db.inventory.aggregate([
+										{$unwind: "$sizes"},
+										{$unwind: "$colors"},
+										{$group:
+												{
+													_id:{name:"$name",sizes:"$sizes"},
+													colors: {$push:"$colors"}
+												}
+										},
+										{$group:
+												{
+													_id:{name:"$id_name",
+														 colors:"$colors"},
+													sizes: {$push: "$_id.sizes"}
+												}			
+										}
+									])
+	
+	
+MAPPING BETWEEEN SQL AND MONGO AGGREGATION 	
+==========================================
+
+	WHERE 		- $match
+	GROUP BY 	- $group
+	HAVING 		- $match
+	SELECT 		- $project
+	ORDER BY 	- $sort
+	LIMIT 		- $limit
+	SUM			- $sum
+	COUNT 		- $sum 
+	JOIN 		- No corresponding operator, but we can say $unwind do similar funcation. You non normalized data is in an array within doc and you can unwind 	
+				  it and make it more like a join statement.
+
+
+	Check the page http://docs.mongodb.org/manual/reference/sql-aggregation-comparison/ for more details
+
+	Few examples on how SQL and mongo agg are mapped
+	-------------------------------------------------
+	
+	- The SQL examples assume two tables, orders and order_lineitem that join by the order_lineitem.order_id and the orders.id columns.
+	- The MongoDB examples assume one collection orders that contain documents of the following prototype:
+		{
+		  cust_id: "abc123",
+		  ord_date: ISODate("2012-11-02T17:04:11.102Z"),
+		  status: 'A',
+		  price: 50,
+		  items: [ { sku: "xxx", qty: 25, price: 1 },
+				   { sku: "yyy", qty: 25, price: 1 } ]
+		}
+	
+	1) 
+	SQL Example
+	===========
+	SELECT COUNT(*) AS count
+					FROM orders
+	
+	
+	MongoDB Example
+	===============
+	db.orders.aggregate( [
+					   { $group: { _id: null,
+								   count: { $sum: 1 } } }
+					] )
+	
+	2)	
+	
+	SQL Example
+	===========
+	SELECT SUM(price) AS total
+						FROM orders
+	
+	MongoDB Example
+	===============
+
+	db.orders.aggregate( [
+			   { $group: { _id: null,
+						   total: { $sum: "$price" } } }
+			] )
+				
+	
+	3)
+	
+	SQL Example
+	===========
+	SELECT cust_id,
+			   SUM(price) AS total
+		FROM orders
+		GROUP BY cust_id
+
+	
+	MongoDB Example
+	===============
+	db.orders.aggregate( [
+			   { $group: { _id: "$cust_id",
+						   total: { $sum: "$price" } } }
+			] )
+	
+	
+	4)
+	
+	SQL Example
+	===========
+	SELECT cust_id,
+       SUM(price) AS total
+		FROM orders
+		GROUP BY cust_id
+		ORDER BY total
+
+	
+	
+	MongoDB Example
+	===============
+	db.orders.aggregate( [
+			   { $group: { _id: "$cust_id",
+						   total: { $sum: "$price" } } },
+			   { $sort: { total: 1 } }
+			] )
+	
+	
+	See more in mongo documentation.
+
+	
+	
+LIMITATIONS OF AGGREGATION FRAMEWORK
+=====================================
+	- Limited 16mb memory.
+	- Cannot use more than 10% total memory
+			- You can use $match and $project in the early stages to reduce the memory.
+	- Sharding
+			- In read production you have your database sharded across multiple mongod's and router mongoS will talk to them. So after first $group and $sort, your results need to be brought back to the mongoS to send to next stage of the pipeline. In most cases mongoS in colocated with application in the same box. So this may impact the performance of your application. 
+
+	Note: If you cannot use aggregation framework on large data sets, we can use the map reduce framework on use the hadoop using the hadoop driver to perform large level aggregations.
+	
+	

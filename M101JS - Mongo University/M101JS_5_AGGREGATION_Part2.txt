@@ -1,0 +1,251 @@
+Project 
+=======
+	Project phase in the pipeline is mainly used to reshape the document. It is 1:1. Every doc that comes to project will have one going out. We can do below things
+		- remove keys
+		- add new keys
+		- reshape keys
+		- use some simple functions on keys.
+			- $toUpper
+			- $toLower
+			- $add
+			- $multiply.
+			
+	Example: We will apply below aggregation framework on the product collection that have properties name, category, manufacturer, price.
+
+		db.products.aggregate ([
+								{$project:{
+											_id:0,
+											maker:{$toLower:"$manufacturer"},	
+											details:{category:"$category",
+													 price:{$multiply:["$price",10]}
+													},
+											item: "$name"					
+								
+								}}
+								])
+		Here basically we are transforming the collection to a new format. Manufacturer name is all changed to lowercase. Then a details property is created that have two properties from the original doc. Also price is multiplied by 10. Result will look as below
+		
+			{	"maker" : "amazon",
+				"details" :{ 
+							"categoty": "Tablet", 
+							"price"   : 1990
+							},
+				"item":"Kindle Fire"
+			}		
+		
+		There are several reasons to do a project. You can do this in the initial part of the pipe to avoide several properties so that you can save memory.
+	
+	Example2: 
+	------------
+	Write an aggregation query with a single projection stage that will transform the documents in the zips collection from this
+	
+	{
+		"city" : "ACMAR",
+		"loc" : [
+			-86.51557,
+			33.584132
+		],
+		"pop" : 6055,
+		"state" : "AL",
+		"_id" : "35004"
+	}
+	
+	to documents in the result set that look like this:
+	
+	{
+		"city" : "acmar",
+		"pop" : 6055,
+		"state" : "AL",
+		"zip" : "35004"
+	}
+	
+	db.zips.aggregate([{$project:{
+								"_id":0,
+								"city":{"$toLower":"$city"},
+								"pop":"1,
+								"state":1,
+								"zip":"$_id"
+								}
+						}
+						])
+	
+	Note: See the 1 for pop and state. This means to take the values from pop and state and use directly. 0 on _id means, dont show that property.
+	
+	
+MATCH
+------
+		Match will apply a filer when it passes through the pipleline. It has a reducing effect. So for n docs it returns 1 ( n:1 Take the example of zip code collection. Let us assume that we want to match the docs only in New York state. Collection structure is as below.
+		
+			{
+				"city" : "ACMAR",
+				"loc" : [
+					-86.51557,
+					33.584132
+				],
+				"pop" : 6055,
+				"state" : "AL",
+				"_id" : "35004"
+			}
+		
+		db.zips.aggregate([
+							{$match:{
+									state:"NY"
+									}
+							}
+						])			
+						
+		Here we created a match to filter only docs that have a state value of "NY". You can it is very similar to the find query.
+
+		See below how we can write an aggregation pipleline taht will go over all cities in NY state and report the total population for each city. Also we want to see the zip codes that belong to one city.
+		
+		Also we DONT want to see _id in the final result rather show it as city.
+		
+		We are going to have three phases in our pipeline. First match, then grouping and then project.
+		
+		db.zips.aggregate([
+							{$match:{
+									state:"NY"
+									}
+							},
+							{$group:{
+									_id:"$city",
+									pop:{$sum:"$pop"},
+									zips:{$addToSet:"$_id"}
+									}
+							},
+							{$project:{
+									_id:0,
+									city:"$_id",
+									population:"$pop",
+									zips:1
+									}
+							}
+						])			
+		
+SORT
+=====
+	Sort in the pipeline is used to sort the docs. One thing to keep in mind here is that, Mongo wont go to disk to do the sorting. So we need to careful when doing the sorting as it consumes your program memory.
+	
+	It can go before or after the group phase. 
+	
+	You can sort multiple time if you like
+	
+	Sorting at the end of the pipeline
+	-----------------------------------
+	Going back to the previous example where we want to see the per city pop of NY state. Now let us add a sort in the end to see the pop in ascending order.
+	
+		db.zips.aggregate([
+							{$match:{
+									state:"NY"
+									}
+							},
+							{$group:{
+									_id:"$city",
+									pop:{$sum:"$pop"}
+								}
+							},
+							{$project:{
+									_id:0,
+									city:"$_id",
+									pop:1
+									}
+							},
+							{$sort:{
+									pop:1
+									}
+							}
+						])			
+		
+					We can go for multiple keys in the sort instead of one as in the example above. See below sorting on multi keys
+					
+					db.zips.aggregate([
+						{$sort:{
+									state:1,
+									city:1
+								}
+						}
+					])
+		
+	
+SKIP AND LIMIT
+===============
+These two work pretty much the same way it works in find queres. It does not make any sense if you dont do sort before skip and limit. It makese sense to first skip and then limit it.
+
+In the find query the order in which you specify sort, skip and limit did not matter. But in aggregation framework it matters. 	
+
+Extent the previous example as below
+
+db.zips.aggregate([
+							{$match:{
+									state:"NY"
+									}
+							},
+							{$group:{
+									_id:"$city",
+									pop:{$sum:"$pop"}
+								}
+							},
+							{$project:{
+									_id:0,
+									city:"$_id",
+									pop:1
+									}
+							},
+							{$sort:{
+									pop:1
+									}
+							},
+							{$skip:10},
+							{$limit:5}
+						])			
+		
+		Above aggrgation will skip first 10 docs and shows next 5 in the list.
+		
+		
+FIRST AND LAST
+==============
+This goes in group. This phase will get us the first and last docs that comes from a grouping phase. Let us assume we have dataset as below
+
+	a:0		b:23
+	a:0		b:45
+	a:0		b:97
+	a:1		b:17
+	a:1		b:68
+	a:1		b:73.
+	
+Here 'a' and 'b' are sorted. Now if we apply grouping by 'a' and send to 'first' phase, you will get the values 23 and 17. Instead, if we send this to 'last' phase, we will get 97 and 73. Lot of times, first and last dont makes sense without sorting.
+
+Example. In our zip collections, let us assume that we want to find the largest city in every state.  
+
+	db.zips.aggregate([
+						// first group by state and city and find the tatal pop across all zips in that state.
+						
+						{$group:{ 
+								_id:{state:"$state", city:"$city"},
+								population:{$sum:"$pop"}
+								}
+						},
+						// Now sort it by population
+						
+						{$sort:{
+								"_id.state":1,
+								population:-1
+								}
+						},
+						// Now send this again to a group phase where you will find the first one group to give highest population
+						{$group:{
+								_id:"$_id.state",
+								city:{$first:"$_id.city"}
+								}
+						},
+						// After you complete this phase, your state wise soring is gone. You will get the results in random state order. So sort again 
+						{$sort:{
+								"_id":1
+								}
+						}		
+						]);
+						
+						
+						Note: You can see the references you make in the next phase on varios fields is with respect the varios properties we defined in a previous phase. If your phase can create new properties ( example, group, project phase ), then that is the properties available for next phase. If not ( like sort), your references are back to the last stage where you defeined properties.
+
+						

@@ -1,0 +1,59 @@
+CRUD - READ
+------------
+
+   CURSOR
+   =======
+   Mongo shell creates a cursor when find command is given. We can store cursor output to a variable as beloe
+   
+   @cur = db.scores.find();null ==. This stores the output to 'cur' variable.
+   @cur.hasNext() == Indicates if any more doc available in cursor.
+   @cur.next() == shell will display next available doc in the cursor.
+   
+   This is useful in programs to loop through all outputs. 
+   
+   while ( cur.hasNext ()) { printjson (cur.next())}  == > This will display all docs in mongo shell. // PRINTJOSN is used to display the docs on output.
+   
+   LIMIT
+   -----
+   We can apply limit on the cursor as below.
+   
+   @cur = db.scores.find();null 
+   @cur.limit(5)  == > Now when the cursor is called, it will limit the result to first 5 .
+  
+  
+   SORTING
+   -------
+   We can sort the contents of a cursor as below
+   
+   @cur = db.scores.find();null 
+   @cur = db.scores.find();null 
+   @cur.sort({name: -1});null
+   
+   This sort the name in reverse order.
+   
+   SORT AND LIMIT together
+   ------------------------
+   @cur = db.scores.find();null 
+   @cur.sort({name: -1}).limit(5);null
+   
+   Order in which this operation is done : 1. Sort 2. Skip 3. Limit.
+   
+   Sort and Limit should be applied immediatly after creating the cursor because these are applied in the server side. If these are applied after hasNext() or next(0, it wont work.
+   
+   SKIP.
+   ------
+   
+   @cur = db.scores.find();null 
+   @cur.sort({name: -1}).limit(5).skip(2);null  ==> Order in reverse order, skip first 2 and show 5 from the list.
+   
+   ******IMP********
+   
+   SKIP, SORT and LIMIT can be used directly on the find method. Not necessart that it applies to cursor.
+   
+   @db.scores.find( { type : "exam" } ).sort( { score : -1 } ).skip(50).limit(20)
+   
+   COUNT
+   ------
+   @db.scores.count({type:'essay'});
+   
+   

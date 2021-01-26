@@ -1,0 +1,320 @@
+
+Application Engineering mainly deals with replication (adding multiple nodes) and shrading ( scaling horizontally ) 
+
+REPLICATION
+===========
+	Replication is done to increase 
+			- Availability 
+			- Fault tolerance. ( If the primary node goes down )
+	
+	Concept Explained
+	-----------------
+	In replication, let us assume we have three mongod's that replicates and mirror the data. One node is primary and others are secondary. Data written to the primary will asynchronously replicate to secondaries.  Application is connected to the primary and writes to the primary. If primary goes down, the secondaries will do 'election' to select the primary. Once the new primary is selected, app will reconnect to the new primary for writes. Now the old primary that went down can rejoin the replication set and act as a secondary now.	
+	
+	When you elect a new primary, there should be a majority compared to the original number of nodes in the replication set. So if we had 3 nodes, to elect a new primary , we need 2 node's majority to elect the new primary. For this reason, we a need a min of 3 nodes in the replication set (which will assure we have a new primary is elected )
+	
+	
+	Types of replica set nodes.
+	---------------------------	
+	
+	- Regular nodes ==> Node that has data that can become a primary or secondary
+	- Arbiter node ==> It is there only for voting purposes. We will have a primary and secondary with data and an arbiter to elect new node as primary when current one goes down.
+	- Delayed node ==> This is a disaster recovery node. It can be set couple of hours behind other nodes. It can participate in voting, but cannot become a primary. We will set priority to zero if we dont want a node to become primary
+	
+	- Hidden node ==> Oftern used for analytics. It cannot become primary, so priority is set to zero. Can participate in election.
+
+    Mostly we will assign one vote per node. 
+
+
+
+WRITE CONSISTENCY 
+==================
+
+		P			S			S
+	  mongod	 mongod		 mongod	
+		\
+			\read/write
+				\
+					\	
+					App
+					
+		In normal configuration, App will always write to the primary. Reads can go to primary or secondary ( if you like). If you have both reads and writes go only to primary, you have strong read/write consistancy. But if you allow read to go to secondaries, you may have stale data in secondaries. Because of the lag in replication. This replication is async, so we cannot guarantee within what time secondary will be in sync with primary.
+		
+		Also when the primary goes down, you dont have a node to write until new primary is elected. 
+		
+		By default mongo allows to read and write only to primary. This is in contrast some other db systems where you have eventual consistency. What that means is you will eventually able to read what you wrote ( which means by default they allow reads from secondary). Web Apps should be stateless to scale horizontally. So allowing eventual consistancy may not be a good idea ( especially when you write session data to db and then do a read from secondary where you dont get what you wrote )
+		
+		
+		During the time of failover is occuring, we cannot complete the write. Usually fail overs are under a second. So we want to make sure we have retry logic in the program to deal this situation.
+		
+
+CREATING A REPLICA SET
+=======================
+	Right way to do this is to have three servers running three mongods.  But for learning purposes, we can have three mongod's running in the same server listening to 3 different ports.
+	
+	create a sh file for bash to execute as below OR run them individually on the shell
+	
+	mkdir -p /var/lib/mongodb/rs1 /var/lib/mongodb/rs2 /var/lib/mongodb/rs3
+	
+	mongod --replSet rs1 --logpath "1.log" --dbpath /var/lib/mongodb/rs1 --port 27017 --fork --smallfiles
+	mongod --replSet rs1 --logpath "2.log" --dbpath /var/lib/mongodb/rs2 --port 27018 --fork --smallfiles
+	mongod --replSet rs1 --logpath "3.log" --dbpath /var/lib/mongodb/rs3 --port 27019 --fork --smallfiles
+	
+		
+	mongod --replSet rs1 --logpath "1.log" --dbpath /var/lib/mongodb --port 27017 --fork
+	
+	
+	replSet ==> Used to configure replication with replica sets. Specify setname as a arg to this.
+	fork ==> Enables daemon mode for mongod that runs the process in the background.	
+	smallfiles ==> If we dont add this, we will get an errot that not enough space for the journal. Need at leaset 3GB free space.
+		
+	Note: Do it from root user. Otherwise mongod wont start.
+	
+	
+	At this point we started three mongod's in the same server. But they are not tied together. First one dont know about second or third and viceversa. So now we need to tie them together.
+	
+	We need to create a configuration file in mongo shell as below
+	
+	config = { _id: "rs1" , members: [
+				{_id:0, host:'ip-10-71-151-139:27017' , priority:0, slaveDelay:5 },
+				{_id:1, host:'ip-10-71-151-139:27018'}, 
+				{_id:2, host:'ip-10-71-151-139:27019'} ]
+			}	
+	
+	Now give the following commands on mongo shell
+	
+		@ rs.initiate(config)
+		@ rs.status()
+	
+	Notes: 
+		- Use the 'hostname' command to get the ec2 host name details.
+		- first one in the members, we are creating a delay of 5 seconds and also saying it cannot become primary by setting priority = 0.
+		- When you connect to mongo shell, you cannot connect to the default port now because 27017 port is not longer configured as a primary. So we need to conect to next one 27018. Use the command as @ mongo --port 27018
+		
+	
+	
+	When you run the rs.status() from the primary node, you will see the below status
+	
+	
+	{
+        "set" : "rs1",
+        "date" : ISODate("2014-01-28T17:26:07Z"),
+        "myState" : 1,
+        "members" : [
+                {
+                        "_id" : 0,
+                        "name" : "ip-10-185-182-114:27017",
+                        "health" : 1,
+                        "state" : 2,
+                        "stateStr" : "SECONDARY",
+                        "uptime" : 174,
+                        "optime" : Timestamp(1390929791, 1),
+                        "optimeDate" : ISODate("2014-01-28T17:23:11Z"),
+                        "lastHeartbeat" : ISODate("2014-01-28T17:26:07Z"),
+                        "lastHeartbeatRecv" : ISODate("2014-01-28T17:26:06Z"),
+                        "pingMs" : 0,
+                        "syncingTo" : "ip-10-185-182-114:27018"
+                },
+                {
+                        "_id" : 1,
+                        "name" : "ip-10-185-182-114:27018",
+                        "health" : 1,
+                        "state" : 1,
+                        "stateStr" : "PRIMARY",
+                        "uptime" : 931,
+                        "optime" : Timestamp(1390929791, 1),
+                        "optimeDate" : ISODate("2014-01-28T17:23:11Z"),
+                        "self" : true
+                },
+                {
+                        "_id" : 2,
+                        "name" : "ip-10-185-182-114:27019",
+                        "health" : 1,
+                        "state" : 3,
+                        "stateStr" : "RECOVERING",
+                        "uptime" : 174,
+                        "optime" : Timestamp(0, 0),
+                        "optimeDate" : ISODate("1970-01-01T00:00:00Z"),
+                        "lastHeartbeat" : ISODate("2014-01-28T17:26:07Z"),
+                        "lastHeartbeatRecv" : ISODate("2014-01-28T17:26:06Z"),
+                        "pingMs" : 0,
+                        "lastHeartbeatMessage" : "syncThread: 14031 Can't take a write lock while out of disk space"
+                }
+        ],
+        "ok" : 1
+}
+	
+		====> Here you can see that last one ( which is initiated on 27019 port is still in recovering phase because of lack of disk space. If there was no such issue,we would have see this also as "SECONDARY"
+		
+		You can see that second one is elected as the Primary. 
+		
+	- Now get on to the mongo shell to the primary port and inset a new doc
+	
+		@mongo --port 27018 
+		> db.people.insert({name:"Varun"});
+		
+		
+	- You will see data got inserted to the primary ( db.people.find())
+
+	- Now get on to a secondary and see if you can find the one you inserted to the primary.
+	
+		@mongo --port 27017
+		> db.people.find() 
+		
+		You will get below error message :  error: { "$err" : "not master and slaveOk=false", "code" : 13435 }
+
+		Basically, we cannot read from secondary by default.
+		
+	- To solve above problem, issue the command as 
+		
+		>rs.salveOk()
+		
+		here we are saying for the mongo shell connected to this secondary mongod, it is ok to do a read. This wont get applicable to other connections to this mongod.
+		
+	- Now do the query again
+		
+		> db.people.find() 
+		
+		Now you will see the same record you inserted into the primary.
+		
+	- Now you can also go to the other secondary and repeat the same steps. You can see data is replicated there as well ( In our case, it wont be there becuase of disk space error )
+
+	
+REPLICA SET INTERNALS
+======================	
+
+	- Connect to the primary of the three replicas we created in the previous section.
+	- Issue the below command
+	
+			@ rs.isMaster()
+		
+		This will have a property called 'isMaster' which will be set to true if you are connected to primary
+
+			{
+        "setName" : "rs1",
+        "ismaster" : true,
+        "secondary" : false,
+        "hosts" : [
+                "ip-10-71-151-139:27018",
+                "ip-10-71-151-139:27019"
+        ],
+        "primary" : "ip-10-71-151-139:27018",
+        "me" : "ip-10-71-151-139:27018",
+        "maxBsonObjectSize" : 16777216,
+        "maxMessageSizeBytes" : 48000000,
+        "localTime" : ISODate("2014-01-29T16:41:16.757Z"),
+        "ok" : 1
+}
+
+	- If you issue rs.isMaster() command on secondary replica, you will the flag value as false.
+	
+	- Add couple of records to primary as below
+	
+		@use test
+		@db.people.insert({name:"Varun", age: 32})
+		@db.people.insert({name:"Divya", age: 29})
+		
+	- Go to secondary and you will see the same records added there	 ( Provide rs.slaveOk() command before running the query )
+	
+	How the replication works
+	-------------------------
+	
+	- Go to the primary DB and go to the local database
+		
+		rs1.PRIMARY> use local
+				   > show collections
+				   
+		You will see a collection called 'oplog.rs'
+
+	- Open this collection as below
+	
+				   >db.oplog.rs.find().pretty()
+		
+		You see below set		   
+				   
+					{
+				"ts" : Timestamp(1391012853, 1),
+				"h" : NumberLong(0),
+				"v" : 2,
+				"op" : "n",
+				"ns" : "",
+				"o" : {
+						"msg" : "initiating set"
+				}
+		}
+		{
+				"ts" : Timestamp(1391013971, 1),
+				"h" : NumberLong("-9116352708947738606"),
+				"v" : 2,
+				"op" : "i",
+				"ns" : "test.people",
+				"o" : {
+						"_id" : ObjectId("52e930536dcd6ddd28a9b3d5"),
+						"name" : "Varun",
+						"Age" : 32
+				}
+		}
+		{
+				"ts" : Timestamp(1391013983, 1),
+				"h" : NumberLong("-1368609505171956568"),
+				"v" : 2,
+				"op" : "i",
+				"ns" : "test.people",
+				"o" : {
+						"_id" : ObjectId("52e9305f6dcd6ddd28a9b3d6"),
+						"name" : "Divya",
+						"Age" : 29
+				}
+
+	- Now go to secondary DB and use the local. Then find the 'oplog.rs' and do a find(). You will see the same record as above there also. Also note that these records dont have an Object Id. RS collections dont need an object id.
+
+	- SO the way replication works is by syncing the data in oplog by looking at the timestamp. 
+	
+	- If we add an index to the primary, you can see that also getting added to oplog and being sent to secondaries.
+	
+	RECOVERY OF PRIMARY /FAILOVER
+	==============================
+	We are going to shut down the primary and see what is going to happen.
+	
+	Go to the terminal that have primary running. Issue the below command on terminal
+	
+		@ ps -ef | grep mongo   // this will list all processes that have a name 'monogo.
+		
+	root      6159     1  0 16:24 ?00:00:10 mongod --replSet rs1 --logpath 1.log --dbpath /var/lib/mongodb/rs1 --port 27017 --fork 
+	root      6205     1  0 16:24 ?00:00:10 mongod --replSet rs1 --logpath 2.log --dbpath /var/lib/mongodb/rs2 --port 27018                               
+	root      6251     1  0 16:24 ?00:00:10 mongod --replSet rs1 --logpath 3.log --dbpath /var/lib/mongodb/rs3 --port 27019 --fork 
+	root      6731  6103  0 16:43 pts/2    00:00:00 mongo --port 27019 	
+	
+	We can see verios mongod's running and thier process numbers.. Now kill the primary
+	
+		@ kill 6205
+		
+	- Now do a rs.status() on the mongod that is running on 27019. Now you can see it became primary and the previous primary have a status as "Not reachable/Healthy"
+	
+	- Also notice that mongo prompt is changed to PRIMARY.
+	
+	
+IMPLICATIONS OF REPLICATION
+===========================
+	Replications are transperent to the developer. They dont need to worry about the replication and how the backend wiring is performed to write code. But there are few things to be aware of 
+
+	- Seed Lists  : Driver used to connect to mongodb need to be aware of the fact that there is a replica set exist. A seed list is created to inform driver about this .
+	
+	- Write Concern : Waiting for some members of the node to acknowledge your write ( which is called 'w' parameter.) j paremeter which indicates whether you need to wait for the primary to write to the disk. There is 'wTimed' paramter which indicated how long you need to wait for primay to acknoledge. 
+	
+	- Read preferences : Now we have multiple nodes, application team needs to decide whether to read from only primary OR primary and secodaries.
+	
+	- Errors can happen: Even with replication in place, still errors can happen like network errors, disk errors etc. So we need to have error handling in place.
+
+FAILOVER AND ROLL BACK
+=======================
+
+	Let us assume that we have three nodes. One is primary and 2 other secondaries. There will be few seconds of delay to replicate the opslog.rs from primary to other two secondaries. Now, if the primary goes down, there are going to be few write in the primart that secondaries dont have because of replication lag. 
+	
+	Now after a period of time, old primary will come back as a secondary to the collection.Now this new secondary node will look into the newly elected primary to replicate the data and will realize that the new primary dont have some of the data it has.
+	
+	Now what happens is that this new secodary will roll back those write to make it in sync with new primary. This rolled back data will be added to a file and we can manually update the primary with this rolled back data. 
+
+	
+		
+	

@@ -1,0 +1,6 @@
+
+
+
+function invalid(){
+	return response.render('signup.jade', {invalid :true});
+}

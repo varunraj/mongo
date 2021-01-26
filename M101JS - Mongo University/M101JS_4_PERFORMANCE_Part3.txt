@@ -1,0 +1,93 @@
+HOW DB DETERMINE WHICH INDEX TO USE
+-----------------------------------
+	If we have an index on a, b and c and when we do a query how db determine which of these 3 index should be used ?
+		- When we run a find for the first time, it will run queries using those 3 queries in parallal and and memorize which one retuned the data faster.
+	
+	Q: Given collection foo with the following index: db.foo.ensureIndex({a:1, b:1, c:1}).  Which of the following queries will use the index?
+		a) db.foo.find({b:3, c:4})
+		b) db.foo.find({a:3})
+		c) db.foo.find({c:1}).sort({a:1, b:1})
+		d) db.foo.find({c:1}).sort({a:-1, b:1})
+		
+	A: b and c...  a cannot use index because index starts with a. 'd' also will not use index because index is created with 'a' ascending, 'b' acending and our sort has 'a' descending.
+	
+HOW LARGE AN INDEX
+------------------
+	We want to keep an index in memory and not in disk to make it fast. So it is important to check the size of the index.Use the stats method on students collection which have 3 million records.
+
+	@db.students.stats()
+	
+	{
+        "ns" : "performance.students",
+        "count" : 2999997,
+        "size" : 223999792,
+        "avgObjSize" : 74.66667200000533,
+        "storageSize" : 335896576,
+        "numExtents" : 14,
+        "nindexes" : 2,
+        "lastExtentSize" : 92581888,
+        "paddingFactor" : 1,
+        "systemFlags" : 1,
+        "userFlags" : 0,
+        "totalIndexSize" : 172832464,
+        "indexSizes" : {
+                "_id_" : 97343456,
+                "student_id_1" : 75489008
+        },
+        "ok" : 1
+}
+
+	==> We can see that total size used in almost 3GB.
+	
+	Now check the size of index using below command
+	
+	@db.students.totalIndexSize().
+	172832464  == 173 MB
+	
+	As a developer, we need to keep in mind how big the data set and how big the index we are creating.Because Index will be pulled into porgram memory. If index are huge, they will be back in disk and not in memory. This can impact the performance. This is more of a DBA topic.
+	
+	
+INDEX SELECTIVITY.
+------------------
+	When we design an index, we need to do in a way that it focus on selectivity. If we are creating an index for a logging collecton that have a timestamp and 5 operatations, it is better to create an idex on timestamp because thay will help tp reach to the desired doc fastest. Similary for a collection that have manufacture, mileage, color, odometer reading, it is better to create ad idex on odometer to reach the desired doc fast.
+	
+	
+HINTING AN INDEX
+----------------
+	Tell Mongo which index to use intead of allowing mongo to select one.
+	We can add it to end of the find query as xxx.hint({a:1,b:1,c:1}) ==> Asking DB to use a:1,b:1,c:1 
+	@.hint({$natural:1}) ==> This is asking mongo not to use any index created by user. Or asking it to use the natural index.
+	
+	Example: foo collection 
+	
+	{ "_id" : ObjectId("527864425d570cffbdac59f1"), "a" : 0, "b" : 0, "c" : 0 }
+
+	This have four indexex. One on each a,b,c and d.
+	
+	For the command @db.foo.find({a:100,b:100,c:100}).explain ==> WE can see that it use the index on 'a' ==>  "cursor" : "BtreeCursor a_1",
+	For the command @db.foo.find({a:100,b:100,c:100}).hint({$natural:true}).explain ==> WE can see that it use the basic cursor which is on object Id ==>   "cursor" : "BasicCursor",
+
+Efficieny of Index Use
+-----------------------
+	Index may not work efficiently if have have negative conditions like $ne,$gt, $lt, regex with wildcards in beginning and end.
+	
+GEO SPACIAL INDEX
+------------------
+	We can store location on mogodb which have x and y co ordinates. This kind of data is need to find the distance between two points etc. We can create a property 'location' which contains x and y as [x,y]. Then we can add an index to this using the keyword '2d'
+	
+	db.foo.ensureIndex({location:'2d'}), It can also be a compount index.
+	
+	$NEAR:
+	------
+	This operation is used to find a point near to another point as below.
+	
+	@db.foo.find({$location:{$near:[x,y]}}).limit(20) == > This will return nearest 20 points to the x,y we passed to this query. Returned docs will be in increasing order.
+
+GEO SPACIAL SPHERICAL  ==> Check the video. This is used to store the location of earth in longitute and latitude.
+---------------------
+	
+	
+	
+	
+	
+	

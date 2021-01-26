@@ -1,0 +1,56 @@
+ERROR HANDLING 
+==============
+If any error happens, current code will take that exception and shows it on the browser window. We need to avoid that happening by adding special error handling.
+
+
+
+routes/index.js ( changes to include error module)
+----------------
+
+var errors = require('./errors');
+module.exports = function(app){
+    // Home Page
+    app.get('/', function(req,res){
+        res.render('home.jade')
+    });
+    // Error Handler
+    errors(app);
+}
+
+
+routes/errors.js
+----------------
+
+module.exports = function(app){
+
+    // Code to handle all 404 ( unfound routes )
+
+    app.use(function(req,res,next){
+        res.status(404);
+        if(req.accepts('html')){
+            return res.send("<h2> Sorry, We cannot find the page you are looking for </h2>");
+            }
+
+        if(req.accepts('json')){
+            return res.json({error: 'Page Not Found'});
+            }
+
+		// Default if above two fails
+        res.type('txt');
+        res.send("Hmm, Could not find that page");
+
+    });
+
+    // Code to handle 500 Error
+
+    app.use(function(err,req,res,next){
+        console.error('error at %s\n', req.url, err);
+        res.send(500, "Oops we made some server error")
+        });
+
+
+   }
+   
+   - Here the second app.use will be executed only if express finds an error object. It looks at the number of arguments = 4 to make that decision.
+   
+   

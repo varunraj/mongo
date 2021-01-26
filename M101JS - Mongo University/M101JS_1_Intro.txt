@@ -1,0 +1,12 @@
+@mongo   ==> Enter mongo shell
+
+Basic Commands
+---------------
+@show dbs ==> Show the databases available
+@use demo ==> Switch to the demo database. If this is already not available, it will be created
+@db.things.find() ==> Show all documents (records) in the collection ( table) things.
+@db.things.insert({ "a":1, "b":2, "c":3 }) ==> This will insert record into the things db.
+@db.things.find({"a":1})  ==> This will return only the record that have value for a as 1. (Instead of getting all docs using find() 
+@db.things.find.pretty() ==> In a more readable format.
+
+

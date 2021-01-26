@@ -1,0 +1,260 @@
+Aggregation framework in Mongo is trying to address 'GROUP BY' concept in SQL world. You want to go over the entire collection to find a sum and then groupby something. That is what mongo aggregation framework is trying to address here.
+
+Take the example of below table and how it is done in SQL
+
+name	category	manufaturer		price
+----	--------	------------	------
+ipad	tablet		Apple			499
+nexus	cellphone	Google 			350.
+
+If you want see the total number of products per manufacturer, in sql world you will  do the below query
+
+@ select manufacturer, count(*) from products group by manufacturer. 
+
+Once you execute below query, you will get the result as 
+
+manufaturer 	count
+-----------		------
+Apple			3
+Google			2
+
+here count* is the aggregation function is sql world.
+
+How we do the same in Mongo ?
+-------------------------------
+do the below in mongo shell ( in driver also it maps very similar) 
+
+	db.products.aggregate([
+					{$group: 
+						{
+							_id:"$manufacturer",
+							num_products:{$sum:1}
+						}
+					}
+				]);
+				
+	When you execute this, you will get result as below
+	
+	{
+	"resut":  [
+				{ "_id":"Amazon",
+				  "num_products":2
+				},	
+				{ "_id":"Google",
+				  "num_products":2
+				},
+				{ "_id":"Apple",
+				  "num_products":2
+				},
+			], "ok" :1
+	}
+	
+	Basically, we are asking to create a new collecttion iside the group document where _id is the manufacturer and also a new field called num_products that will give me the sum.
+	
+	
+Aggregation pipeline
+=====================
+		Aggregation framework uses a pipeline ( similar to pipes in unix world where you give pipes between the commands)
+		Check the diagram - "Aggregation pipeline". You can see the collection as the input to this pipeline and it goes through various stages like $project, $match, $group, $sort. In the previous product example we discussed, we can see that inside the aggregation, we have an array and groupby is one of the item inside that array. We can give other items in the pipeline to that array.
+		
+		Different items in the pipeline and what they do ? ( check the diagram - 'aggregation framework' )
+		----------------------------------------------------
+		
+		Note: we dont need to follow the below order in agg framework
+		
+		$project : This will take care of which docs from teh collection we need to select, reshape the documents. $project works 1:1. If we give 10 docs to project, it will send out 10 docs.
+		
+		$match: filter ( in the products example, if I wanted to look only products that have manufacturer as apple, then we can do this early in the pipeline using match. Filter may see 100 docs and it produce 25 from that 
+		
+		$group: This where we do the aggregation. This also n:1 where it sees several docs and group then as per our aggregation rules.
+		
+		$sort: it sors. Its 1:1 , so if it sees 10 docs, it will produce 10 docs.
+		
+		$skip: It skips docs after sorting. it is n:1
+		
+		$limit: Limit how much to be shown: n:1
+		
+		$unwind: It unjoins data. If we have a blog doc that have tags like [ "sports", "summar","outdoor"], unwind will produce three docs one for each. So what unwind does is normalize the data for aggragation. It is 1:n
+
+	We can have a stage exists more than once in pipeline. So we can take our collection to each of these stages several times to produce our desired result.
+	
+	
+COMPOUND GROUPING
+==================
+	In the first example we saw how to group with one key. What if we want to group by multiple keys ? We want to get the products for each manufacturer and then category count. Apple Ipad 3, Apple Iphone 2. 
+	
+					{$group: 
+						{
+							_id:{manufacturer: "$manufacturer",
+								 category	 : "$category"},
+							num_products:{$sum:1}
+						}
+					}
+	
+		
+				Note: Here manufacturer and category are arbitary names. We can give what ever we want.
+	
+		If you look at the first simple query, it is written as _id:"$manufacturer". We could also write it as _id:{Company:"$manufacturer"}. This way we can also put a label on the one key we are trying to group. 
+		
+		
+		Note: We can create _id as a document also.
+		
+		db.class.insert({_id:{name:"tom", class: "101B"}, city:"NY"})  // Here we are adding a document for _id.
+		
+OTHER EXPRESSIONS AVAILABLE IN THE AGGREGATION GROUPING PHASE
+=============================================================
+	$sum:
+	------
+	We saw the usage of sum is previous examples. $sum:1 will add 1 every time. We can also sum a value from the collection itself. For example if we want to add $ amounts on each category, we can give $sum:"$price"
+	
+		{$group: 
+						{
+							_id:"$manufacturer",
+							price_total:{$sum:"$price"}
+
+						}
+
+						
+	We have the city and ZIP collection of US cities as below. 
+
+		{                                                                                                                                           
+        "city" : "ACMAR",                                                                                                                   
+        "loc" : [                                                                                                                           
+                -86.51557,                                                                                                                  
+                33.584132                                                                                                                   
+        ],                                                                                                                                  
+        "pop" : 6055,                                                                                                                       
+        "state" : "AL",                                                                                                                     
+        "_id" : "35004"
+						
+
+	Write an aggregation query that will sum of the population of each state.					
+						
+						
+		db.zips.aggregate([{$group:{
+								_id:"$state",
+								population:{$sum:"$pop"}
+								}
+							}
+							]);
+						
+	
+	
+	$avg: 
+	-----
+	Similar as above. Will find the average value of key specified here.
+		
+	Find the average price of each category in our products collection
+	
+	db.products.aggregate([{$group:{
+								_id:"$category",	
+								average_price:{$avg:"$price"}
+							}}])
+	
+	
+	
+	
+	
+	
+	$min: 
+	------
+	Similar as above. Will find the min value of key specified here.
+	
+	db.products.aggregate([{$group:{
+								_id:"$category",	
+								min_price:{$min:"$price"}
+							}}])
+	
+	Here you can see that result is not telling me who is the manufacturer of the category which offers min price. There is no easy way to get this. We can get this during other items in aggregation pipeline which we can see later. You will get an error if you add "manufacturer:"$manufacturer"" after min_price in the above query.
+		
+	$max: 
+	------
+	Similar as above. Will find the max value of key specified here.
+	
+	
+	$addToSet:
+	---------
+	There is no parallal from sql world on how addtoSet works. If we go back to our products collection, we want to find what all categories each manufacturer sells. I want to see something like Apple - Tablet, Phone, MP3 Player. So we need to create an array and store all categories sold by Apple. 
+	
+	
+	db.products.aggregate([{$group:{
+								_id:{maker: "$manufacturer"},	
+								categories:{$addToSet:"$category"}
+							}}])
+	
+	
+	Example: Suppose we population by zip code (postal code) data that looks like this (putting in a query for the zip codes in Palo Alto)
+	
+	@db.zips.find({state:"CA",city:"PALO ALTO"})
+	{ "city" : "PALO ALTO", "loc" : [ -122.149685, 37.444324 ], "pop" : 15965, "state" : "CA", "_id" : "94301" }
+	{ "city" : "PALO ALTO", "loc" : [ -122.184234, 37.433424 ], "pop" : 1835, "state" : "CA", "_id" : "94304" }
+	{ "city" : "PALO ALTO", "loc" : [ -122.127375, 37.418009 ], "pop" : 24309, "state" : "CA", "_id" : "94306" }
+	
+	== So we can see that there are several zips for a city. Write an aggregation query that will return the postal codes that cover each city
+	
+	db.zips.aggregate([{$group:{
+								"_id":{"city": "$city"},	
+								"zips":{$addToSet:"$_id"}
+							}}])
+	
+	$push
+	-----
+	push is very similar to addToSet. But push will not guarantee that it is unique. So if there are two documents that have that have apple with category tablet. So when we do push, tablet will be added twice to the array.	
+
+	db.products.aggregate([{$group:{
+								_id:{maker: "$manufacturer"},	
+								categories:{$push:"$category"}
+							}}])
+	
+	
+	
+	
+	
+	
+	$first: This will show the first value that got added to a grouping. This does not make sense if we dont sort the data.
+	
+	$last: Same as above, last instead of first.
+	
+	
+
+CONCEPT OF DOUBLE GROUPING
+---------------------------
+	As we stated before we can use grouping in a pipeline as many times needed. Let us assume that we have a dataset as below.
+	
+	{	_id: "ObjectId{"xxssdsds"},
+		student_id: 1,
+		class_id: 300,
+		type:"homework"
+		score:88
+	}
+	
+	{	_id: "ObjectId{"xxssdsds"},
+		student_id: 1,
+		class_id: 300,
+		type:"quiz"
+		score:90
+	}
+	
+	
+	We need to calculate the average score for the class. We dont get the correct answer if we do a group by class_id and average on score ( not sure if that is a correct statement). First we need to find the average of each student within a class. Then I need to pipe that result to next grouping where we will find the average of class by looking at the student scores we got from previous stage.
+	
+	
+	db.grades.aggregate([{$group:{
+							_id:{class:"$class_id", 
+								student:"$student_id"
+							}, average:{$avg:"$score"}	
+					}} ,{$group:{
+							_id:"$id.class_id",
+							average:{$avg:"$average"}}}	
+							
+	])
+
+	Here results of first grouping is passed to second one. We can access the keys created in first one in the second one as above (id.class_id, $average)
+	
+
+Note: You can write a query in a document and save as query1.js. Then run mongo < query1.js will execute it. This is another way instead of typing on the mongo terminal.
+
+
+	
+	
+	

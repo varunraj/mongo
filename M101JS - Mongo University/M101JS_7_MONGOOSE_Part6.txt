@@ -1,0 +1,26 @@
+MIDDLEWARE
+==========
+
+var express = require('express');
+module.exports = function(app){
+
+    app.use(express.logger('dev');
+    app.use(express.cookieParser());
+    app.use(express.session({ secret: 'building a blog'}));
+    app.use(express.bodyParser());
+
+    // expose sessions to views
+
+    app.use(function(req,res,next){
+        res.locals.session = req.session;
+        next();
+    })
+
+
+}
+
+- We use express middleware to do business logic before it hit routes
+- In this dev version we are using express.session. This will have limits from machine memory and will be lost once machine is shut down. So we need to use something like mongo connect session storage in real production 
+- body parser middleware is used to get the form values
+- last custom middlware adds session details to res.locals object which is them available to views.
+

@@ -1,0 +1,87 @@
+What is Index ad why it is imp for performance ?
+------------------------------------------------
+	Collections are stored in disk not in a particular order. Database has to scan through all the docs to find the data in a collection.
+	Finding something in an ordered list of quick because we can reach to the data fast by binary search. But it is not easy to find something in un ordered list.
+	Index is nothing but an ordered list of keys with pointers to actual data. If we give multiple keys, then first it will order on the basis of fist key and within that it will use the second key. Eg: Index ( name, hair-color, DOB), index will be formed with name as the first order, with in name, hair-color will be sorted  ...so on.
+	
+	If I just give DOB from the index, it wont help much because, it seaches at the lowest level of name, hair, DOB .
+	
+	Reads are faster and Writes are slower when you have a index
+	-----------------------------------------------------------
+	Reads are faster because it is searching an ordered list. But if we insert the data, index needs to recalculate the order which it will take more time than without index. So we dont want to create an index for all fields in a doc but only for the most used pattern.
+	
+How to add index
+-----------------
+	Let us assume we added 10 million student records. Now it will take few seconds to get a record in this collection. So we need to create an index as below
+	
+	@db.students.ensureIndex({student_id:1})  ==> Here we are adding an index on student field in ascending order.
+	
+	Now just use the usual find command the seach will be much faster
+	
+	@db.students.find({stundet_id:700000})  ==> This will give immediate result.
+	
+	@db.students.ensureIndex({student_id:1, class:-1})  ==> This is a two part index. First it will create on student id and then on class. When we do the find we can either give student and class or just student. But giving class alone wont make in difference because class is used within student id in the sorted list.
+
+Finding indexes in a database
+-----------------------------
+	@ db.system.indexes.find()   ==> This will list all indexes in current database.
+	
+	Output as below:
+	
+	{ "v" : 1, "key" : { "_id" : 1 }, "ns" : "performance.students", "name" : "_id_" }
+	{ "v" : 1, "key" : { "student_id" : 1 }, "ns" : "performance.students", "name" : "student_id_1" }
+
+	All collections have a key "_id". And the key we added is "student_id". 
+	
+	
+	Get the indexes of a collection:
+	---------------------------------
+	@db.students.getIndexes() ==> Will display indexes of students collection as below
+	
+	Dropping an index:
+	------------------
+	
+	@db.students.dropIndex({"student_id":1})  == > We need to specifify exactly the same string we used to create index.
+	
+Multi-key Index
+----------------
+	We can create an index on an element which hold arrays. For example, tags:["cycling","tennis","football"]. We can add an index on tags and mongo will create a multi key index. Here instead of creating one index for tags, it creates an index for every element of the array.
+	
+	Some points about multi key indexex
+	------------------------------------
+		- @ db.test.insert({a:1,b:1}) , @db.ensureIndex({a:1,b:1})  == > I added a compound index on a and b
+		- @ db.test.insert({a:[2,3,4], b:2}) ==> Now the index is multi key index and it happened dynamically
+		- @ db.test.insert({a:7, b:[2,5,6]}) ==> Same as above
+		- @ db.test.insert({a:[7,5,7], b:[2,5,6]}) ==> Mongo will not allow this with error " Cannot index parallal arrays" . Because now mongo has to create 	
+			an index for each combinations of the array,
+		
+UNIQUE INDEX
+-------------
+	So far we have created indexes that were not unique. So basically I can add another stundet with same student_id on which I had an index. We can create unique index as below.
+	
+	@db.stuff.ensureIndex({thing:1},{unique:true})   ==> This creates a uniqe index on thing.,
+	
+	If you do the command, @db.stuff.getIndexex() ==> You can see the unique parameter is enabled.
+	
+	{
+                "v" : 1,
+                "key" : {
+                        "thing" : 1
+                },
+                "unique" : true,
+                "ns" : "performance.stuff",
+                "name" : "thing_1"
+        }
+
+	
+	If we enter a doc with same key value for which there is a unique key constraint, it will throw an error.
+	
+	
+	This is a good way to enforce primary key constaint on a field ? 
+	
+	
+	
+
+	
+	
+	

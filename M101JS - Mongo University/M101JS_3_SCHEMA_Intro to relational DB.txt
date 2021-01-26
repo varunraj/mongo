@@ -1,0 +1,167 @@
+
+
+Entities and Relations in a database
+-------------------------------------
+At a basic level, databases store information about distinct objects, or entities, and the associations, or relationships, between these entities. For example, a university database might store information about students, courses, and enrollment. A student and a course are entities, while an enrollment is a relationship between a student and a course. Similarly, an inventory and sales database might store information about products, customers, and sales. A product and a customer are entities, while a sale is a relationship between a customer and a product.
+
+A popular approach to conceptual design uses the Entity Relationship (ER) model, which helps transform the requirements into a formal description of the entities and relationships that appear in the database.
+
+Representing Entities
+---------------------
+	To help visualize the design, the Entity Relationship Modeling approach involves drawing an Entity Relationship (ER) diagram. In the ER diagram, an entity set is represented by a rectangle containing the entity name. We typically use the database to store certain characteristics, or attributes, of the entities. In a sales database, we could store the name, email address, postal address, and telephone number for each customer.
+	
+	composite attribute:
+	--------------------
+	An attribute may be formed from smaller parts; for example, a postal address is composed of a street number, city, ZIP code, and country. We classify attributes as composite if they’re composed of smaller parts in this way, and as simple otherwise
+	
+	multiple attribute:
+	--------------------
+	Some attributes can have multiple values for a given entity. For example, a customer could provide several telephone numbers, so the telephone number attribute is multivalued
+	
+	key
+	----
+	Attributes help distinguish one entity from other entities of the same type. We could use the name attribute to distinguish between customers, but this could be an inadequate solution because several customers could have identical names. To be able to tell them apart, we need an attribute (or a minimal combination of attributes) guaranteed to be unique to each individual customer. The identifying attribute or attributes form a key.
+		
+		Option1 for key
+		----------------
+		In our example, we can assume that no two customers have the same email address, so the email address can be the key. However, we need to think carefully about the implications of our choices. For example, if we decide to identify customers by their email address, it would be hard to allow a customer to have multiple email addresses. Any applications we build to use this database might treat each email address as a separate person, and it might be hard to adapt everything to allow people to have multiple email addresses. Using the email address as the key also means that every customer must have an email address; otherwise, we wouldn’t be able to distinguish between customers who don’t have one.  ==> So I think our key should be a unique item for the entity and also there cannot be multiple items like that for the same entity.
+		
+		Option2 for key ( Use a composit key)
+		-------------------------------------
+		
+		Looking at the other attributes for one that can serve as an alternative key, we see that while it’s possible that two customers would have the same telephone number (and so we cannot use the telephone number as a key), it’s likely that people who have the same telephone number never have the same name, so we can use the combination of the telephone number and the name as a composite key.
+		
+		
+		How to pick the key ?
+		----------------------
+		You usually make this choice based on how confident you are that the attribute will be non-empty and unique for each individual entity, and on how small the key is (shorter keys are faster to maintain and use).
+		
+		REFER THE DIAGRAM: "ER REPRESENTATION OF CUSTOMER ENTITY"
+		----------------------------------------------------------
+		- Square indicates entity 
+		- Ovals indicate attributes
+		- under line inside an attribute indicates key
+		- double oval indicates that it can have multiple values there. Telephone is an example here. You should think carefully when classifying an attribute 
+			as multivalued: are all the values equivalent, or do they in fact represent different things? For example, when listing multiple telephone numbers for a customer, would they be more usefully labeled separately as the customer’s business phone number, home phone number, cell phone number, and so on?  
+		- Postal address is a composite attribute. So it splits further into more ovals.
+		
+		When we create a unique id outside the entity attribute to identify them ?
+		---------------------------------------------------------------------------
+		
+		For some applications, no combination of attributes can uniquely identify an entity (or it would be too unwieldy to use a large composite key), so we create an artificial attribute that’s defined to be unique and can therefore be used as a key: student numbers, Social Security numbers, driver’s license numbers, and library card numbers are examples of unique attributes created for various applications. In our inventory and sales application, it’s possible that we could stock different products with the same name and price. For example, we could sell two models of “Four-port USB 2.0 Hub,” both at $4.95 each. To distinguish between products, we can assign a unique product ID number to 
+		
+		
+RELATIONSHIPS
+-------------
+	Entities can participate in relationships with other entities. For example, a customer can buy a product, a student can take a course, an artist can record an album, and so on. Like entities, relationships can have attributes: we can define a sale to be a relationship between a customer entity (identified by the unique email address) and a given number of the product entity (identified by the unique product ID) that exists at a particular date and time (the timestamp).
+
+	"Our database could then record each sale and tell us, for example, that at 3:13 p.m. on Wednesday, March 22, Ali Thomson bought one “Four-port USB 2.0 Hub,” one “300 GB 16 MB Cache 7200 rpm SATA Serial ATA133 HDD Hard Disk,” and two sets of “2000 Watt 5.1 Channel Sub-Woofer Speakers.” 
+
+	TYPES OF RELATIONSHIPS  - ONE TO ONE (1:1), ONE TO MANY(1:N) AND MANY TO MANY (M:N)
+	----------------------
+	
+	Different numbers of entities can appear on each side of a relationship. For example, each customer can buy any number of products, and each product can be bought by any number of customers. This is known as a many-to-many relationship. We can also have one-to-many relationships. For example, one person can have several credit cards, but each credit card belongs to just one person. Looking at it the other way, a one-to-many relationship becomes a many-to-one relationship; for example, many credit cards belong to a single person. Finally, the serial number on a car engine is an example of a one-to-one relationship; each engine has just one serial number, and each serial number belongs to just one engine. We often use the shorthand terms 1:1, 1:N, and M:N for one-to-one, one-to-many, and many-to-many relationships, respectively. 
+	
+	REFER THE DIAGRAM: "ER REPRESENTATION OF RELATIONSHIP BETWEEN ENTITIES"
+	-----------------------------------------------------------------------
+		- represent a relationship set with a named diamond
+		- The cardinality of the relationship is often indicated alongside the relationship diamond
+			Cardinality of the relationship
+			-------------------------------
+			The number of entities on either side of a relationship (the cardinality of the relationship) define the key constraints of the relationship. It’s important to think about the cardinality of relationships carefully. There are many relationships that may at first seem to be one-to-one, but turn out to be more complex. For example, people sometimes change their names
+			
+		- Partial and Total Participation: 
+			Relationships between entities can be optional or compulsory. In our example, we could decide that a person is considered to be a customer only if they have bought a product. On the other hand, we could say that a customer is a person whom we know about and whom we hope might buy something—that is, we can have people listed as customers in our database who never buy a product. In the first case, the customer entity
+			has total participation in the bought relationship (all customers have bought a product, and we can’t have a customer who hasn’t bought a product), while in the second case it has partial participation (a customer can buy a product). These are referred to as the participation constraints of the relationship. In an ER diagram, we indicate total participation with a double line between the entity box and the relationship diamond
+
+ENTITY OR ATTRIBUTE
+--------------------	
+
+		1)Is the item of direct interest to the database?
+
+		Objects of direct interest should be entities, and information that describes them should be stored in attributes. Our inventory and sales database is really interested in customers, and not their email addresses, so the email address would be best modeled as an attribute of the customer entity.
+
+		2)Does the item have components of its own?
+
+		If so, we must find a way of representing these components; a separate entity might be the best solution. In the student grades example at the start of the chapter, we stored the course name, year, and semester for each course that a student takes. It would be more compact to treat the course as a separate entity and to create a class ID number to identify each time a course is offered to students (the “offering”).
+
+		3)Can the object have multiple instances?
+
+		If so, we must find a way to store data on each instance. The cleanest way to do this is to represent the object as a separate entity. In our sales example, we must ask whether customers are allowed to have more than one email address; if they are, we should model the email address as a separate entity.
+
+		4)Is the object often nonexistent or unknown?
+
+		If so, it is effectively an attribute of only some of the entities, and it would be better to model it as a separate entity rather than as an attribute that is often empty. Consider a simple example: to store student grades for different courses, we could have an attribute for the student’s grade in every possible course. Because most students will have grades for only a few of these courses, it’s better to represent the grades as a separate entity set
+
+ENTITY OR RELATIONSHIP  
+----------------------
+
+		An easy way to decide whether an object should be an entity or a relationship is to map nouns in the requirements to entities, and to map the verbs to relations. For example, in the statement, “A degree program is made up of one or more courses,” we can identify the entities “program” and “course,” and the relationship “is made up of.” Similarly, in the statement, “A student enrolls in one program,” we can identify the entities “student” and “program,” and the relationship “enrolls in.
+		
+		Check the diagrams 1)  ER REPRESENTATION OF STUDENT GRADE AS ATTRIBUTE OF STUDENT ENTITY 
+						   2)  ER REPRESENTATION OF STUDENT GRADE AS A SEPERATE ENTITY
+						   
+						   
+SIMPLYFYING MANY TO MANY RELATIONSHIP
+-------------------------------------
+		It is often possible to conceptually simplify many-to-many relationships by replacing the many-to-many relationship with a new intermediate entity (sometimes called an associate entity) and connecting the original entities through a many-to-one and a one-to-many relationship
+		
+		Check diagram: MANY TO MANY RELATION SIMPLIFIED. 
+		
+		Here Passeger -- books --- flight. Passenger and Flight have a relatioship of books which is a many to many relation. This can be changed to two one to many by making it Passanger -- makes (R) ----Booking -----is For (R) --- Flight.
+		
+WEAK AND STRONG ENTITIES
+------------------------
+	Context is very important in our daily interactions; if we know the context, we can work with a much smaller amount of information. For example, if
+	we wanted to store the names of our customers’ children, we could create a child entity and store only enough key information to identify it in the context of its parent. We could simply list a child’s first name on the assumption that a customer will never have several children with the same first name. Here, the child entity is a weak entity, and its relationship with the customer entity is called an identifying relationship. Weak entities participate totally in the identifying relationship, since they can’t exist in the database independently of their owning entity
+	
+	In the ER diagram, we show weak entities and identifying relationships with double lines, and the partial key of a weak entity with a dashed underline, as in "ER REPRESENTATION OF A WEAK ENTITY". A weak entity is uniquely identified in the context of its regular (or strong) entity, and so the full key for a weak entity is the combination of its own (partial) key with the key of its owning entity. To uniquely identify a child in our example, we need the first name of the child and the email address of the child’s parent.
+		
+REFER THE DIAGRAM "ER SYMBOLS SUMMARY"
+--------------------------------------
+
+REFER THE EXAMPLES GIVEN IN THE SECTION 'ENTITY RELATIONSHIP MODELING EXAMPLES' GIVEN IN THE 'LEARNING MY SQL' DOC . CHAPTER 4, PAGE 120.
+-----------------------------------------------------------------------------------------------------------------------------------------
+
+Mapping Entities and Relationships to Database Tables
+======================================================
+
+	1) For each strong entity, create a table comprising its attributes and designate the primary key. The parts of any composite attributes are also included here
+	
+	2) For each weak entity, create a table comprising its attributes and including the primary key of its owning entity. The primary key of the owning entity is known as a foreign key here, because it’s a key not of this table, but of another table. The primary key of the table for the weak entity is the combination of the foreign key and the partial key of the weak entity. If the relationship with the owning entity has any attributes, add them to this table.
+	
+	3) For each multivalued attribute of an entity, create a table comprising the entity’s primary key and the attribute.
+	
+	4) For each one-to-one relationship between two entities, include the primary key of one entity as a foreign key in the table belonging to the other. If one entity participates totally in the relationship, place the foreign key in its table. If both participate totally in the relationship, consider merging them into a single table.
+	
+	5) For each nonidentifying one-to-many relationship between two entities, include the primary key of the entity on the “1” side as a foreign key in the table for the entity on the “N” side. Add any attributes of the relationship in the table alongside the foreign key.
+	
+	6) For each many-to-many relationship between two entities, create a new table containing the primary key of each entity as the primary key, and add any attributes of the relationship. This step helps to identify intermediate entities
+	
+	7) For each relationship involving more than two entities, create a table with the primary keys of all the participating entities, and add any attributes of the relationship
+	
+Example using Music database
+------------------------------
+	Refer the diagram : ER REPRESENTATION OF MUSIC DATABASE
+	
+	1) For the strong entity Artist, we create the table artist comprising the attributes artist_id and artist_name, and designate artist_id as the primary key.
+	
+	2) For the weak entity Album, we create the table album comprising the attributes album_id and album_name, and include the primary key artist_id of the owning Artist entity as a foreign key. The primary key of the album table is the combination {artist_id, album_id}
+	
+	3) For the weak entity Track, we create the table track comprising the attributes track_id, track_name, and time, and include the primary key {artist_id,
+	album_id} of the owning Album entity as a foreign key. The primary key of the track table is the combination {artist_id, album_id, track_id}.
+	
+	4) For the weak entity Played, we create the table played comprising the attribute played, and include the primary key {artist_id, album_id, track_id} of the owning Track entity as a foreign key. The primary key of the played table is the combination {artist_id, album_id, track_id, played}.
+
+	5) There are no multivalued attributes in our design, nor are there any nonweak relationships between our entities, so our mapping is complete here.
+	
+
+
+		
+
+
+		
+		
+		
+		
+		

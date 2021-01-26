@@ -1,0 +1,294 @@
+CONNECTING TO REPLICA SET FROM NODE.JS
+======================================
+	We can either give all the nodes to the connection object or just give one and nodejs driver will detect the replicaton set and will take care of connection.
+	
+	See below how the driver code changes
+	
+	 var MongoClient = require('mongodb').MongoClient;
+	 MongoClient.connect('mongodb://localhost:27017' + 
+						  'localhost:27018' +	
+						   'localhost:27019/course', function(err,db) {
+ 
+			if (err) throw err;
+			db.collection('repl').insert({x:1}, function(err, doc){
+				if (err) throw err;
+				
+				db.collection('repl').fineOne({x:1}, function(err, doc){
+					if (err) throw err;
+					console.log(doc);
+					db.close();
+				});
+			});
+	  });
+	 
+
+	 In this example, we are giving comma seperated replica set members as the SEEDLIST. Instead, I can also just give one member of the replica set and it should be taken care automatically. If you are only giving one, make sure it is up and running when program trying to connect. Otherwise it wont be able to discover the replica sets. So it is better to give all the node to the driver. All complexties of having multiple nodes, finding which one the is primary and making writes and reads as per the rules are taken care by the driver so that application logic dont need to worry about all those things.
+	 
+	 
+FAIL OVER IN NODEJS DRIVER
+==========================
+
+	Node driver will send all writes to the primary. By default setting, all reads will also go to primary. Now if the primary goes down, all the reads that comes form the application is buffered in the driver. You application will not see the writes as complete until the new primary is up and driver flushes the buffer. But you can keep sending writes from the application.
+
+	Sample application used to demostrate the concept:
+
+
+	var MongoClient = require('mongodb').MongoClient;
+	 MongoClient.connect('mongodb://localhost:27017' + 
+						  'localhost:27018' +	
+							'localhost:27019/course', function(err,db) {
+			
+			if (err) throw err;
+			
+			var documentNumber = 0;
+			
+			function insertDocument(){
+				db.collection("repl").insert({'documentNumber': documentNumber++}, function (err, doc){
+						if (err) throw err;
+						console.log(doc);
+				})
+				console.log("Despatched Insert");
+				setTimeout(insertDocument,1000);
+ 			}
+
+			insertDocument();
+
+			
+	  });	
+	 
+	Above program is connecting to a replica set. And then a function is called in every 1 second that will insert a document to the database. You can see function is inialized first and then called again within the function. SO this acts like a for loop that keep on creating asyc insert requests.
+
+
+	- Run the above application which will insert document to db everuy 1 second.
+		
+		You will see the log message as 
+		
+			Dispatched insert
+			[{documentNumber:1, _id: xxxxxxxx}
+			Dispatched insert
+			[{documentNumber:2, _id: xxxxxxxx}
+			Dispatched insert
+			[{documentNumber:3, _id: xxxxxxxx}
+			Dispatched insert
+			[{documentNumber:4, _id: xxxxxxxx}
+	
+	
+	- Go to the primary and shutdown the server or kill the process that runs the primary mongod.
+	
+		To shutdown server ( from mongo shell )
+		-------------------
+			> use admin
+			> db.shutdownServer()
+			
+		Now, look at the log and you will see an interesting side effect
+		
+			Dispatched insert
+			Dispatched insert
+			Dispatched insert
+			Dispatched insert
+			Dispatched insert
+			Dispatched insert
+			[{documentNumber:5, _id: xxxxxxxx}
+			[{documentNumber:6, _id: xxxxxxxx}
+			[{documentNumber:7, _id: xxxxxxxx}
+			[{documentNumber:8, _id: xxxxxxxx}
+			Dispatched insert
+			[{documentNumber:9, _id: xxxxxxxx}
+			Dispatched insert
+			[{documentNumber:10, _id: xxxxxxxx}			
+	
+			So, during a short duration on despatches happend and no inserts because primary went down. Driver started buffering those and did not inserted them until new primary was elected/
+			
+
+WRITE CONCERN IN NODEJS DRIVER
+===============================
+	Write concern is the configuration we make on how to write to the replica set. Default write concern is w = 1
+
+	w = 1 : Means send the write to primary and ack back to application when write is completed on primary.
+	w = 0 : Means send the write to primary and dont wait for confirmation from primary on write. So ack is sent immediatly to driver and back to application. Use case for this will be when u deal with large amount of data and you dont worry about loosing one or two data. 
+	w = 2 : Means return an ack only if primary and one of the secondary ack the write.
+	w = 3 : Means return an ack only if primary and both secondaries ack the write.
+	w = n : We can give the total number of nodes in replication set if we want all nodes to be written before sucess is returned.
+	w = j : Means write to the primary journal before you return sucsess. Basically writing to journal ensure that data wont be lost. It is like a step before inserting into actual db. It ensures data is persisted to the disk.
+	w = majority : means return a sucess after writing to majority of nodes in the replication set.
+	
+	See below sample code on including write concern on the node driver.
+			
+			
+	var MongoClient = require('mongodb').MongoClient;
+	 MongoClient.connect('mongodb://localhost:27017' + 
+						  'localhost:27018' +	
+						   'localhost:27019/course?w=1', function(err,db) {
+ 
+			if (err) throw err;
+			
+			// Below will do a write concern of 1.
+			
+			db.collection('repl').insert({x:1}, function(err, doc){
+				if (err) throw err;
+				console.log(doc);
+				
+			});
+			
+			// Below will do a write concern of 2.
+			
+			db.collection('repl').insert({x:1},{w:2} , function(err, doc){
+				if (err) throw err;
+				console.log(doc);
+				
+			});
+			
+	  });
+	 
+	 -- > See the parameter passed along with db name " 'localhost:27019/course?w=1' ". So we are saying the dafault write concern for this connection is 1. So nothing is specified in the query, it will use the write concern of 1.
+	 
+	 ---> See the parameter {w:2}  passed in the second insert. This tell db to use the write concern of 2.
+	 
+	 Q: What happens if we specify a write concern larger than the number of nodes we currently have up?
+	 A:The write waits forever
+	 
+	 
+	 
+READ PREFERENCE IN NODEJS DRIVER ( Setting the value of 'j' ) 
+=============================================================	 
+
+	By default all reads from the drive goes to primary. But you can configure to read from secondaries also.  Various options are
+	
+		- Primary - Go to primary for reads
+		- Secondary - Go to secondary for reads
+		- Primary Prefered - Go to primary and if it is not available, go to secondary.
+		- Secondary Prefered - Go to secondary and if it is not available, go to primary
+		- Nearest - Configure to go to the nearest node.
+	
+	See below a sample app on how to use read preference using mongo driver.
+	
+	
+		var MongoClient = require('mongodb').MongoClient;
+		var ReadPreference = require('mongodb').ReadPreference;
+		
+	 MongoClient.connect('mongodb://localhost:27017' + 
+						  'localhost:27018' +	
+							'localhost:27019/course/?readPreference=secondary', function(err,db) {
+			
+			if (err) throw err;
+			
+			db.collection('repl').insert({'x':1}, function(err, doc){
+				if (err) throw err;
+				console.log(doc);
+			});
+			
+			
+			function findDocument(){
+				db.collection("repl").findOne({'x': 1}, {'readPreference': ReadPreference.PRIMARY}, function (err, doc){
+						if (err) throw err;
+						console.log(doc);
+				})
+				console.log("Despatched Find");
+				setTimeout(findDocument,1000);
+ 			}
+
+			findDocument();
+
+	  });	
+
+	  
+	  
+	  
+	  
+	  ===> Note the inclusion of ReadPreference in the require section.
+	  ===> Note the inclusion of "?readPreference=secondary", towards end of database names. This is where we set the default read preference for a connecton. But we can overwrite this value in the read query. If not specified in the read query, this value will be used.
+	  
+	  ==> We are inserting a doc and then issueing a read for every one second. In the read we are changing the default read preference to read from PRIMARY. This will over write the preference we set durng the connection setup.
+	  
+	  ==> Run the above application and you will see the below log
+	  
+		@Despatched find
+		@[{ x:1, _id:xxxccccssss }]
+		@Despatched find
+		@[{ x:1, _id:xxxccccssss }]
+		@Despatched find
+		@[{ x:1, _id:xxxccccssss }]
+		@Despatched find
+		@[{ x:1, _id:xxxccccssss }]
+		@Despatched find
+		@[{ x:1, _id:xxxccccssss }]
+		
+	==> Now go to the Primary node and shut down the server
+		> use admin
+		>db.shutdownServer()
+		
+	==> Now go back to the application log and you will that find are no loger returing a result. It is just despatching the queries. Then we will see results are coming back. So basically new primary is elected in the mean time and it started pulling data from that new primary.
+	
+		@Despatched find
+		@Despatched find
+		@Despatched find
+		@Despatched find
+		@Despatched find
+		@[{ x:1, _id:xxxccccssss }]
+		@Despatched find
+		@[{ x:1, _id:xxxccccssss }]
+		@Despatched find
+		@[{ x:1, _id:xxxccccssss }]
+	
+	==> 
+	
+	WHAT HAPPENS IF WE DO THE SAME EXPERIMENT WITH READ PREFERENCE AS 'SECONDARY'.SO IN THE CODE, DO NOT OVERWRITE THE READ PREFERENCE FROM SEC TO PRIMARY.
+	------------------------------------------------------------------------------------------------------------------------------------------------------
+	
+	==> Run the app with read preference as secondary. You will see the log as 
+	
+		@Despatched find
+		@[{ x:1, _id:xxxccccssss }]
+		@Despatched find
+		@[{ x:1, _id:xxxccccssss }]
+
+		same as before
+		
+	==> Go to primary node and shutdown the server. We will see the app log as
+	
+		@Despatched find
+		@[{ x:1, _id:xxxccccssss }]
+		@Despatched find
+		@[{ x:1, _id:xxxccccssss }]
+		
+		So basically, there is no impact from primary fail over. It just reads from the secondary.
+		
+		
+	THEN WHY WE STILL WANT TO READ FROM PRIMARY ?
+	----------------------------------------------
+	This is because reading from primary assures the consistancy. All reads have the latest and greatest data. because there is a replication lag between primary and secondary. So we need to think about whether our application are ok to have that kind of inconsistancy between reads and writes. It may be ok for a social network but may not be ok for a enterprise app that have few users which deals with member data.
+	
+	
+Q: You can configure your applications via the drivers to read from secondary nodes within a replica set. What are the reasons that you might not want to do that? Check all that apply.
+
+A : 
+	1. If your write traffic is significantly greater than your read traffic, you may overwhelm the secondary, which must process all the writes as well as the reads. Replication lag can result
+	
+	2. You may not read what you previously wrote to MongoDB.
+	
+	3. If the secondary hardware has insufficient memory to keep the read working set in memory, directing reads to it will likely slow it down.
+	
+	So this is an imp point. Secondary is always performing the same writes as primary. SO now we direct the read traffic to secondaries, it will slow it down which further makes the replication lag problem worse. 
+	
+	
+NETWORK ERRORS:
+===============
+	Driver send reads and writes to mongod and we get a response back and that completes the loop of a transaction. But since the application and mongod are connected over network, we need to have network failure also under consideration. What if driver updated the date to mongo but the ack signal back from mongod lost in the network error. 
+	
+	
+	Q: What are the reasons why an application may receive an error back even if the write was successful. Check all that apply.
+	
+	A: 
+		1. The network TCP network connection between the application and the server was reset between the time of the write and the time of the getLastError call.
+		
+		2. The MongoDB server terminates between the write and the getLastError call
+		
+		3. he network fails between the time of the write and the time of the getLastError call
+		
+	One way to overcome this is to put a retry logic in the application . Lot of times applications dont do this because these errors happen very rare.
+	
+	
+	
+	
+	
+	

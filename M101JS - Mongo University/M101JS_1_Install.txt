@@ -1,0 +1,17 @@
+*********
+Install**
+*********   
+ 
+Install MongoDB on Ubuntu 
+--------------------------
+http://docs.mongodb.org/manual/tutorial/install-mongodb-on-ubuntu/
+ 
+  - Control scrip is located at /etc/init.d/mongodb.
+  - DB Instance will be stored at /var/lib/mongodb
+  - Starting daemon - @sudo service mongodb start
+  - Ending daemon - @sudo service mongodb stop
+  - Restarting daemon - @sudo service mongodb restart
+  - Open console - mongo
+
+  
+  

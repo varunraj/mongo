@@ -1,0 +1,61 @@
+IMPLICATIONOS SHARDING
+----------------------
+
+As an application developer, you are transparent to sharding. But there are some implications of sharding from application perspective.
+
+	== Now you need to include shard key in every doc
+	== shard key is immutable. Once you set this value for doc, you cannot change it.
+	== We need an index for the shard key.
+		- If the shard key is on student id, we can have a index for student_id, class. It meets the criteria
+		- You cannot have a multi key index on shard key. In that case you need to create a seperate one
+	== When you do an update, you need to mention the shard key OR set multi = true. When you say multi to true, then only it will send the message to all shards.
+	== No shard key in your query means scatter gather operation. This will impact performance. 
+	== You cannot have a unique index unless it is part of the shard key. Because, indexes are created on each shard seperate. So there is no way for DB to ensure uniqueness across all shards. So only place you can ensure uniqueness is on shard key or a key that contains shard key like student id + class id.
+	
+	
+SHARDING AND REPLICATION
+=========================
+Sharding and replication are always done together. Write concern and read preferences we leaned before on replication are still valid in a replica + sharded environment, Only difference is now you pass those 'w' and 'j' values to mongos when you connect from application. Mongos will use those factors when it talks to varios replicated shards.
+
+
+CHOOSING A SHARD KEY
+=====================
+
+	- You need to ensure that there is sufficient cardinality ( variety ). When we pick student id, it can have a value range from 1 to 10k. But if you select a class id, then there is not enough cardinality. Now it is difficult for mongo to create clusers with a good range. 
+	
+	- You want to avoid hot spotting in writes. This means avoid shard keys that can have monotonically increasing values. when we did sh.status(), we say there is min value and max value that is spreaded across all chunks. So every time if we give a value that is greater than what shards has not seen before ( for example Object_id which is a BSON value that have a timestamp, Every time new value is higher than the previous one), it always get assigned to the last chunk.
+	
+	These are the two main considerations for selecting the shard key. Take the example below
+	
+	{ order_id: --------
+	  order_date: -------
+	  vendor: -----}
+	  
+	If this collection going to have thousands of orders in every hour and increments one by one for every next order( which means order id is monotonically increasing ), we dont want to select vendor id as the shard key. If vendor have enough cardinality, that will be a good choice. Order date also is a value that is ever increasing which result in hot spotting
+		
+	Here vendor+order date will be a good choice. Because if we have some vendors who make so many orders, then there will some chunks that have hot spotting. Now by adding date also part of the shard key, we are avoiding single vendor ending in one shard and thus hot spotting.
+	
+	Think about how the problem can solved naturally parallal.
+	
+	If we have a photo sharing app that have a user collection. We can pick username for shard key. Because, we can evenly split users across shards.
+	
+	We need think really about the shard key and access patter before commit to one. So do some experimentation by setting up various options in test servers before deciding one. Mainly because it is immutable and it will be difficult to change once decided,
+	
+	Q; You are building a facebook competitor called footbook that will be a mobile social network of feet. You have decided that your primary data structure for posts to the wall will look like this:
+
+	
+	{'username':'toeguy',
+     'posttime':ISODate("2012-12-02T23:12:23Z"),
+     "randomthought": "I am looking at my feet right now",
+     'visible_to':['friends','family', 'walkers']}
+	
+	Thinking about the tradeoffs of shard key selection, select the true statements below.
+	
+	A: 
+		Choosing posttime as the shard key will cause hotspotting as time progresses.  == > Correct
+
+		Choosing username as the shard key will distribute posts to the wall well across the shards. == > Correct
+ 
+		Choosing visible_to as a shard key is illegal. == > Correct
+
+		Choosing posttime as the shard key suffers from low cardinality. == > Wrong.

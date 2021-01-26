@@ -1,0 +1,97 @@
+CRUD - UPDATE
+--------------
+	Wholesale replacement - Replacing the whole doc with new fields from update
+	-----------------------
+		Update method takes two argument. First will find the doc to be updated. Second argume specifies what needs to be updated. Everything except primary key which is the object Id will be replaced with second argument.
+		
+		@db.city.update({name:'Chennai'},{name:'Updater Chennai', State:'Updater State'})  ==> This will find the doc with name as 'Chennai' and will make the updates as per the second parm.
+		
+	Updating only specific fields
+	-----------------------------
+		
+		$set
+		-----
+		This operation using $set will update only specific fields.
+		
+		@db.city.update({name:'Chennai'},{$set:{state:'southeast'}})  => This will only update the location . If this not a property already, that property will be added.
+		
+		$inc
+		-----
+		@db.people.update({name:'Alice'},{$inc:{age:1}}) ==> This will increment the age by 1.
+	
+		$unset
+		------
+		This is used if we want to remove one field in the doc. This can also be done via whole operation. But more efficient way to do is via $unset operation
+		
+		@db.people.update({name:'Alice'},{$unset:{age:1}}) ==> This will remove the age field from the document. This can be use for schema modification.
+		
+	Updatiing Arrays inside a document
+	----------------------------------
+		collecton: array == { "_id" : ObjectId("5255fe09546353e404bb8c2d"), "a" : [  1,  2,  3,  4,  5 ] }
+		
+		@db.array.update({_id:ObjectId("5255fe09546353e404bb8c2d")}, {$set:{'a.2':4}}) ==> This will update the a[2] to value 4. IMP: 'a.2' should be in quotes.
+		
+		$push
+		-----
+		Add an element to the right side of the array
+		@db.array.update({_id:1},{$push{a:4}}) ==> This will add 4 to the right of the array
+		
+		$pushAll
+		-------
+		This will add a range of elements to array
+		
+		@db.array.update({_id:1},{$pushAll{a:[4,10,12]}}) ==> This wil ladd 4, 10 and 12 to right of the array.
+		
+		$pop 
+		----
+		Remove the right/left most element from the array.
+		
+		@db.array.update({_id:1},{$pop{a:1}}) ==> This will remove right most element of the array.
+		
+		@db.array.update({_id:1},{$pop{a:-1}}) ==> This will remove left most element of the array.
+		
+		$pull
+		-----
+		This will pull the element from the array no matter what the position is .
+		
+		@db.array.update({_id:1},{$pull{a:4}}) ==> Remove 4 from the array.
+		
+		$pullAll
+		---------
+		This will pull a list the element from the array no matter what the position is .
+		
+		@db.array.update({_id:1},{$pullAll{a:[4,5,6]}}) ==> Remove 4,5 and 6 from the array.
+	
+		$addToSet
+		---------
+		This is like the set property of adding a property to the array. If that element is already present, it wont do anything
+		
+		This will pull the element from the array no matter what the position is .
+		
+		@db.array.update({_id:1},{$addToSet{a:22}}) ==> This will add the value 22 to the array.
+		
+	Upsert
+	-------
+	Upsert is for a special use case. Sometime we need to update a doc and not sure if the doc is already present and in that case, we need to create that doc. This is done using giving a third parameter to the update as below.
+	
+	@db.people.update({name:'Alice'},{$set:{age:31}},{upsert:true})
+	
+	
+	Multi Update
+	------------
+	This is used to update multiple docs at the same time. Find createria return multple records and without 'multi' criteria, mongo will update only one record from the cursor.
+	
+	@db.people.update({},{$set:{age:31}},{multi:true})  == First argument gets all records and setting multi to true makes the update to all records from the cursor.
+	
+	IMP : Default behavior in relational db is to update all records in  the cursor. But for mongo, default is to update only one record from the cursor.
+	
+	
+	
+	
+	
+	
+	
+
+	
+		
+	

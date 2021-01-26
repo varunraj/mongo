@@ -1,0 +1,96 @@
+Logging of slow queries
+------------------------
+	We need to understand how our queries are working in terms of performance. Profiling is used for that. There is also an alternate way. Any queries that take more than 100ms is logged to text log.
+	
+	How to see logging of mongo ?
+	-----------------------------
+	Execute below command
+	
+	@mongod -dbpath /usr/local/var/mongodb.
+	
+	Then execute a query that may take lot of time ( 10 million student data). Now you can see the log shows this query and the time it took to execute. 
+	
+	
+	mongod : mongod is the primary daemon process for the MongoDB system. It handles data requests, manages data format, and performs background management operations.
+	
+	Note: I was not able to open the log as per above step in ubuntu as a ubuntu user. Instead do one of the following
+	- Go to /var/log/mongodb/mongodb.log ( use less -f <filename> ) and you can see a high time consuming queries getting logged here.
+	- Login as root user and run the mongod as " @mongod -dbpath /var/lib/mongodb  ".  Note that the path of database in ubuntu is var/lib/mongodb.( For some reason, you cannot mongod as ubuntu user. ). You can see the database path in the mongodb config path /etc/mongod.conf
+	
+
+PROFILER
+========
+	This will write logs to system.profile for any queries that takes more than x amount of time. There are three modes for profiler. Level 0 : No logging. Level 1:  Log my slow queris , Level 2: Log all queries. Level 2 is more of a debugging feature to find out how program is interacting with DB.
+	
+	start the profiler ( do as a root user )
+	
+	mongod -dbpath /var/lib/mongodb --profile 1 --slowms 2
+	
+	==> --slowms 2 means log all queries above 2 ms
+	
+	Now run a slow query and go to below collection.
+	
+	Now go to db.system.profile.find().pretty(). Look at the data structure and you can do queries to get all searches that took more than 5 ms etc.
+	
+	@db.getProfilingLevel() ==> This will return the current profiling option. Will return 0, 1 or a 2.
+	
+	@db.getProfilingStatus() ==> This will return {"was":1, "slowms: 2}
+	
+	We can also start the profiler from mongo shell as below:
+		 
+		@db.setProfilingLevel(1,4) // then go a get as below
+		@db.getProfilingStatus()  // this will return as {"was":1, "slowms: 4}	
+		
+		Turn off the profiler as
+		
+		@db.setProfilingLevel(0)
+		@db.getProfilingLevel()  // returned as 0 
+		
+	Write the query to look in the system profile collection for all queries that took longer than one second, ordered by timestamp descending.
+
+	Ans: db.system.profile.find({millis:{$gt:1000}}).sort({ts:-1}) . This way we get all sort of insights from profiler tool.
+
+
+MONGOTOP
+---------
+	We can use profiler to find out our slow queries. Then use explain on those slow queries to find out how mongo is doing the search. Use that information to create new indexes or hiting.
+	
+	Mongotop is another tool avaible mimicking the unix top command. Type @mongotop 3 (this will refresh the stats in every 3 seconds)  from linux shell. It will show the statistcs on a high level how the mongodb is performing. It gives the toal read and write milliseconds in each of the database and collection.
+	
+	So MONGOTOP is a levelup from profiler. This tells us which of our collection have a problem. Now I can focus on that collection using profiler and explain.
+
+	Note: Check the TOP command in linux. You can see all processes running and time.memory it is taking. ( @top -d 10 will refresh the screen in 10 secs)
+	
+MONGOSTAT
+----------
+	Modelled agaisnt IOSTAT unix command.
+	
+	@mongostat   ===> You can see lot of system level information like how many queries per second, flushed/sec, updates/sec, how much RAM is consumed by mongo at this point etc. Look for the column 'idx miss %' It is the miss of rate indexes in memory. For mongo to perform well, we need to have our indexes loaded to memory instead of disk. If a program is not using the index, that is not recorded under idx miss. If have an index on a and we do a search on b, then there is no index used for this search and that will not be recorded under idx miss %. So we need to make sure we interpret this number correct .
+	If the index is 1GB and your RAM is < 1GB, then index will not load to memory. That is when you are going to have the idx miss % value updated.
+	
+	
+SHARDING
+--------
+	It is the technique of splitting a large collection across multiple severs. So we will create multiple servers which have mongod's running and all these are connected to 'mongo S' which is a router. Then our application will talk to mongoS. See the picture - SHRADING.
+	
+	Also, each node is not going to just one server but rather multiple serves which is called a replica set. So if one of them goes down, replica will have the data.
+	
+	Insert: If we take the example of student collection, not it sits across multiple servers. So for us to complete an insert, we also need to know which shrad contains it. So we need shrad key to complete the insert operation. 'mongos' will provide this shrad key.
+	
+	If mongoS dont know the shrad key, it will broadcast the query(inserts, finds, removals ) to all shrads. If you know the shrad key, you need to specify it for better performance. 
+	
+	There are more details on how inserts are done with shrading. Those details are covered in application engineeting chapter.
+	
+	MongoS usually co located with application in the same server.
+	
+	
+	
+	
+	
+	
+		
+	
+	
+	
+
+	

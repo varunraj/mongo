@@ -1,0 +1,42 @@
+CRUD - DELETE
+-------------
+	REMOVE
+	-------
+	Remove method is used to deleted the documents from a collection
+	
+	@db.people.remove({name:'Varun'})  == > This will remove the doc that have a name 'Varun'. First argument to remove operator works exactly same as find()
+	@db.people.remove({age:{$gt:25})  == > Removes all docs that have age greater than 25.
+	@db.people.remove() ==> This will remove all docs from the collection.
+
+	DROP
+	----
+
+	@db.people.drop() ==> This will drop the collection.
+	
+	Removing much faster than removing one by one. DROP is more efficient than REMOVE. Also remove the collection is not atomic as a complete operaration. So if we use remove, some other operation will see partial state. But each individual removal of document is an atomic operaton.
+	When we use drop() method, no operation will see it half way through.
+
+ERROR
+
+	getLastError() method is used to get the error from last operation. 
+	
+	@db.runCommand({getLastError:1}) ==> It will display below output is there is no error.
+		
+	{ "n" : 0, "connectionId" : 1, "err" : null, "ok" : 1 }
+	
+	This command can also be used to get details on how many updates happend during an update command.
+	
+	@db.people.update({},{$set:{title:true}}, {multi:true}) and run @db.runCommand({getLastError:1}) .. this will display how many updates happened.
+	
+	*** This command can also be used after an 'upsert' operation to see if the update or insert operation happened. If it created a new record, 'updatedExisting' will be set to false.
+	
+	*** getLastError() can also be used with remove () to get the count of how many records in total got removed.
+	
+	
+	
+	
+	
+	
+	
+	
+	

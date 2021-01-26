@@ -1,0 +1,31 @@
+***********
+JSON INRO**
+***********
+
+JSON Object can take any valid js datatype
+-----------------------------------------
+{ "name": "Mongo", 
+  "database": true,
+  "food": "pie",
+  "price": 10.55
+}  
+    ==> In this example, database have a boolian value, price have a numberic value and other two have string data types.
+	
+Nested Datatypes in JSON
+------------------------
+{ "product": "car",
+  "colors": [ 
+              "red",
+			  "black"
+			]
+}
+			==> Colors is having a value in array
+			
+{ "product": "laptop",
+  "attributes": { 
+              "type":"Windows",
+			  "shiny": true
+			}
+}
+            ==> Here attributes have its value as another json object
+

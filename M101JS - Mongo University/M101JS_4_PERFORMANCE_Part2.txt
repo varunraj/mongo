@@ -1,0 +1,123 @@
+Index Creation and removing dups
+--------------------------------
+	When we create unique index, there is way to remove the docs that are duplicates using  'dropDups' as true. If there are multiple docs with unique value, it will just keep one and drop all others. There is no way to control which one to keep and what all to drop.
+	
+	@db.things.ensureIndex({things:1},{unique:true, dropDups:true}) ==> When it creates an index and finds a duplicate key, it will remove all duplicates.
+
+Sparse Index
+-------------
+	When an index is created, what if the key we selected is not in all docs ?
+	
+	Problem: For the below dataset
+	{a:1,b:2,c:3}
+	{a:3,b:5}
+	{a:5,b:3}
+	
+	When we try to create an index on 'c', database assign null as the value for 'c' for 2nd and 3rd doc. So if we try to create a unique index on 'c', it will not allow to because both 2nd and 3rd doc have a null value for c. We will get the error "duplicate key:{: null} error.
+	
+	Solution for this situation is Sparse index. When we create a sparse index, it will ignore the docs that dont have that value set. So 'b' and 'c' are ignored and only 'a' is used to create the index.
+	
+	@db.products.ensureIndex({size:1},{unique:true,sparse:true}).
+	
+	sparse index can create some issues when we do the sort.
+	
+	@db.products.find().sort({size:1}) ==> This sort will skip the docs for which size value is null because we created an sparse index on 'size'.
+	
+Index creation - Background
+----------------------------
+	We can do index creation in backgound by setting {background:true}
+	- Foreground: By default, index creation runs in foreground. It block writes. But it is faster
+	- background: It will be slow. It will not block write.
+	
+	When to run background process?: If you are by yourselt in a dev region, you can run foregound index creation. But if the index creation is done in a production system where there are other writes to the database, we need to use the background option.
+	
+	There is way to run in the foreground in a prod system. Usually mongo runs with 3 or 4 replication in the prod system. So we can pull one of the db from the block and create index in foreground.
+	
+EXPLAIN
+--------
+	Explain on a find query will return the the details on how find is performed including how the indexes were used.
+	- Created a table 'foo' with 10,000 records with structure as {a:1,b:1,c:1}
+	- Added an index as db.foo.ensureIndex({a:1,b:1,c:1})
+	- Now use the command db.foo.find({c:1}).explain()   ==> This 'find' will not use the previous index we created. Explain will return the below result.
+	
+	{
+        "cursor" : "BasicCursor",
+        "isMultiKey" : false,
+        "n" : 1,
+        "nscannedObjects" : 10000,
+        "nscanned" : 10000,
+        "nscannedObjectsAllPlans" : 10000,
+        "nscannedAllPlans" : 10000,
+        "scanAndOrder" : false,
+        "indexOnly" : false,
+        "nYields" : 0,
+        "nChunkSkips" : 0,
+        "millis" : 16,
+        "indexBounds" : {
+
+        },
+        "server" : "ip-10-185-199-104:27017"
+
+	
+		==> "cursor" : "BasicCursor", == means there is no index used.
+		==> "millis" : 16 ==> Number of milli seconds it took to execute  this query.
+		
+		
+	- Now use the command  db.foo.find({a:1}).explan()   ==> This 'find' will use the previous index we created. 
+		
+	{
+        "cursor" : "BtreeCursor a_1_b_1_c_1",
+        "isMultiKey" : false,
+        "n" : 1,
+        "nscannedObjects" : 1,
+        "nscanned" : 1,
+        "nscannedObjectsAllPlans" : 1,
+        "nscannedAllPlans" : 1,
+        "scanAndOrder" : false,
+        "indexOnly" : false,
+        "nYields" : 0,
+        "nChunkSkips" : 0,
+        "millis" : 48,
+        "indexBounds" : {
+                "a" : [
+                        [
+                                1,
+                                1
+                        ]
+                ],
+                "b" : [
+                        [
+                                {
+                                        "$minElement" : 1
+                                },
+                                {
+                                        "$maxElement" : 1
+                                }
+                        ]
+                ],
+                "c" : [
+                        [
+                                {
+                                        "$minElement" : 1
+                                },
+                                {
+                                        "$maxElement" : 1
+                                }
+                        ]
+                ]
+        },
+        "server" : "ip-10-185-199-104:27017"
+}
+
+	
+	==> "cursor" : "BtreeCursor a_1_b_1_c_1"  == This query used the cursor which is the compunt index of {a:1.b:1,c:1}
+	==> "isMultiKey" : false == No multi key index is used.
+    ==>    "n" : 1 == One doc returned from the find command.
+    ==> "indexOnly" : false == This will indicate if the data can be retieved only using the index. For the query db.foo.find({a:1},{a:1,b:1,_id:false})  , "indexOnly" will return as false.
+
+	For the query @db.foo.find({c:1}).sort({a:1}) == In this case, find will not use index we created, but the sort will use. So the explain command will return index used but, n scanned objects will be 10,000 instead of 1. Because it looked at the whole database to complete the operation.
+	
+	
+	
+	
+	

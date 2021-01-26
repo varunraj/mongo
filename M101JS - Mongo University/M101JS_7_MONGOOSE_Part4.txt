@@ -1,0 +1,77 @@
+AUTHENTICATION = This section we create login and sign up page make changes to layout template to accomodate that
+===============
+
+views/layout
+------------
+ 
+ 
+html5
+html
+        head
+                title= pageTitle
+        body
+                header
+                        h1= pageTitle
+                section.login
+                        ul
+                                if session.isLoggedIn
+                                   li
+                                        a(href="/logout") Logout
+                                else
+                                   li
+                                        a(href="/login") Login
+                                   li
+                                        a(href="/signup") Create Account
+                section.content
+                        block content
+						
+ 
+ - new section added for login
+ - if the user is logged in ( session.isLoggedIn ) , link for logout
+ - if user is not logged in, links for Login and Create account.
+ 
+views/login.jade
+-----------------
+
+extends layout
+
+block content
+   form(method='post', action='/login', enctype='application/x-www-form-urlencoded')
+      h3 Log In
+      if invalid
+         .error Plese enter a valid email id and password
+      ul
+         li
+            label(for='email') Email
+            input#email(name='email')
+         li
+            label(for='pass') Password
+            input#pass(name='pass')
+      input(type='submit', value="Log In')
+
+
+
+views/signup.jade
+------------------
+
+extends layout
+
+block content
+   form(method='post', action='/signup', enctype='application/x-www-form-urlencoded')
+      h3 Sign Up
+      if exists
+         .error
+            | That user exists. Are you trying to
+            a(href='/login') Login
+            | ?
+      if invalid
+         .error Plese enter a valid email id and password
+      ul
+         li
+            label(for='email') Email
+            input#email(name='email')
+         li
+            label(for='pass') Password
+            input#pass(name='pass')
+      input(type='submit', value="Sign Up')
+

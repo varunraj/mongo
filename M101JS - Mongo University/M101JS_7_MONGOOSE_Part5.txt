@@ -1,0 +1,18 @@
+MODEL
+======
+-- Create model for the user using mongoose schema function.
+
+
+var mangoose   = require('mongoose');
+var validEmail = require('../helpers/validate/email');
+
+var schema = mangoose.Schema({
+      _id: { type: String, validate: validEmail}
+    , name :{ first: String, last: String}
+    , salt :{ type: String, required: true}
+    , hash :{ type: String, required: true}
+    , created: { type:Date, default: Date.now}
+})
+
+mongoose.model('User', schema);
+

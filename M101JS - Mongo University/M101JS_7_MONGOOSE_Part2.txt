@@ -1,0 +1,83 @@
+Lecture - Jade
+==============
+
+ - Added routes as a seperate module
+ - Introduced jade template engine. npm install jade --save
+ - no need to set the template engine since we gave views as home.jade extension, express is smart enough to learn it as jade engine
+ 
+
+
+/app.js
+------
+
+   var mongoose = require('mongoose');
+   var express  = require('express');
+   var routes   = require('./routes');
+
+   mongoose.connect('mongodb://localhost',function(err){
+       if(err) throw err;
+
+       console.log("Connected to Mongo, Good Job");
+
+       // start the http server
+
+       var app = express();
+
+       routes(app);
+
+       app.listen(8080, function(){
+           console.log("Started http server, listening to port 8080");
+           });
+   });
+
+
+
+
+
+routes/index.js
+---------------
+
+module.exports = function(app){
+    app.get('/', function(req,res){
+        res.render('home.jade')
+    });
+}
+
+
+	- only one property attached to exports. This function can accept the express object.
+
+
+views/home.jade
+---------------
+
+extends layout
+
+block content
+   if !(posts && posts.length)
+      p Nothing to see here. Move along...
+   else
+      ul.posts
+         each post in posts
+            li
+               h2
+                  a(href="/post/#{post.id}") = post.title
+
+views/layout.jade
+------------------
+
+html5
+html
+        head
+                title= pageTitle
+        body
+                header
+                        h1= pageTitle
+                section.content
+                        block content
+
+
+						
+						
+						
+	- See the block content section. This section will be replaced by items under block content in the home.jade file when we extend this layout.
+

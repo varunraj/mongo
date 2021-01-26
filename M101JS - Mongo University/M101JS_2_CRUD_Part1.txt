@@ -1,0 +1,163 @@
+- GETTING HELP
+
+  - @help  == > This will list al topics for help 
+  
+- BSON Is the data format ( Binary JSON) used to store data in Mongo. BSON support variiety of datatypes and details can be found under http://bsonspec.org/#/specification
+
+	Example: NumberInt(10) creates a 32 bit number format
+	         NumberLong(100) creates a 64 bit number format
+			 ISODate("2012-10-21T17:41:22:345Z") creates a date format used in BSON
+			 
+			 Similar format can be found for ObjectId which is present on every document == ObjectId("524dd420c44f79494baec4d1")
+			 
+			 Use they formats when creating a JSON so that it will be stored in database in these BSON supported formats.
+			 
+
+CRUD - INSERT AND READ
+----------------------
+- Insert ==> @db.city.insert(doc) where doc = {"name": "Minneapolis", "State":"Minnesota"}
+			 IMP: We insert multiple docs at the same insert by specifying all docs as array elements. 
+			 @db.products.insert( [ { _id: 11, item: "pencil", qty: 50, type: "no.2" },
+                      {          item: "pen", qty: 20 },
+                      {          item: "eraser", qty: 25 }
+                    ] )
+				==> So this will insert three docs.
+
+- Read ==> @db.city.find() ==> Show all docs inside the city database === _Id field is system inserted value and this will be present for all documents. 
+		   You can also specify _id value and system will use that value. This value should be unique within the collection.
+           
+		   FINDONE
+		   --------
+		   @findOne ==> This will send back one record from the database.
+		   
+		   @findOne.pretty() ==> to show in a more readable format.
+		   
+		   @db.city.findOne({"name":"Chennai"}) ==> This will return the document that have a name value chennai.
+		   
+		   @db.city.findOne({"name":"Chennai"},{"name":true, "_id":false})   == > Second argument passed to findOne tells whall fields needs to be returned. If not specified, it will return all fields. If any of the fields are skipped to mention in the list, they are considered false. ("_id" is an exception to this rule. If this is not specified as false, it is returned all the time.
+		   
+		   FIND
+		   -----
+		   Sample code to insert 1000 records to database for indicating scrore, using Mongo shell.
+		    >>>>
+		    for (var i =0; i <1000; i++){ var type = ["exam","essay","quiz"]   for (var j = 0; j < 3; j++) {      db.scores.insert({"student":i,"type":type[j],"score":Math.round(Math.random()*100)}) } }
+		    >>>>
+		   
+		   @db.scores.find({student:1,type:"essay"})  ==> This will return everything for student 1 and type = essay.
+		   @db.scores.find({student:1,type:"essay"},{"_id":false,student:true,type:true})  ==> Second argument specifies the column list.
+		   
+		   Doing greater than and Less than
+		   --------------------------------
+		   @db.scores.find({score:{$gt:50}})   ==> This will display all records that have a score > 50
+		   @db.scores.find({score:{$lt:50}})   ==> This will display all records that have a score < 50
+		   @db.scores.find({score:{$gt:50,$lte:75}}) ==> This will display all records that have a score > 50 AND <=75
+
+			$gt and $lt can be applied to strings also. Note that  'Bob' will be greater than 'B'. It is not just looking at the first letter but how the utf-8 is stored as bytes in the database.
+			
+		   $EXISTS
+		   ------
+		   Mongo allows different column names for different docs within a collection. Use the Exists command to get the list of docs that have a particular column
+		   
+		   @db.people.find({profession:{$exists:true}})  == > This will list all docs in people that have a column 'profession'
+		   
+		   $TYPE
+		   -----
+		   Student can contain both a string and a number in Mongo as it is schema less. Type method is used to return a particular type of field when it have multiple field types
+
+			@db.people.find({student:{$type:2}})  ==> This will return all student record that have a type 2. $type uses BSON specification to indicate various data types. Look at BSONSPEC.ORG to get the details of types.
+		   
+		   $REGEX
+		   ------
+		   This use used to find string patterns inside a document
+		   @db.people.find({name:{$regex:"a"}}) ==> This will return all docs that have "a" in the name.
+		   @db.people.find({name:{$regex:"e$"}}) ==> This will return all docs that ends with a letter 'e'.
+		   @db.people.find({name:{$regex:"^A"}}) ==> This will return all names that start with A
+
+		   
+		   $OR
+		   -----
+		   
+		   $OR operator is used to make 'OR' logical connection. Statements to OR operator is given in an array form with each statement in a json format. OR operation is a prefix operator
+
+		   @db.people.find({$or:[{name:{$regex:'e$'}},{age:{$exists:true}}]})   == This will return all docs that have a name ending with 'e' OR that have an age field.
+		   
+		   $AND
+		   -----
+		   
+		   $AND operator is used to make 'AND' logical connection. Statements to AND operator is given in an array form with each statement in a json format.  AND operation is a prefix operator
+
+		   @db.people.find({$and:[{name:{$regex:'e$'}},{age:{$exists:true}}]})   == This will return all docs that have a name ending with 'e' and that have an age field.
+		   
+		   This query could have rewtitten as below. So most of the cases $AND need not be used.
+		   
+		   @db.people.find({name:{$regex:'e$'},age:{$exists:true})
+		   
+		   ARRAY QUERY OPERATORS
+		   =====================
+			   Query inside array:
+			   -------------------
+			   Mongo have the polymorphism propery. If a documement have an field 'Favorites' that have an array of values 'Beer','Water', give the criteria for the Favorites field and mongo will return the value
+			   
+			   { "_id" : ObjectId("52521f39d73515d561b37378"), "Name" : "George", "Favotites" : [  "icecream",  "pretzel" ] }
+
+			   @db.accounts.find({Favorites:'pretzel'}) == > This query will first look for the value in Favorites. If none, it will look inside the array and return the above record. IF THE ARRAY CONTAINS VARIOUS DOCUMENTS, IT WILL LOOK INTO THE DOCUMENTS ALSO.
+			   
+			   			   
+			   Important Note: Find will not perform a recursion search. that means within favorites, there is another array with in the array, find will not return the search on those record. It will go only one level deep.
+			   
+			   $ALL operator for ARRAY
+			   -----------------------
+			   This is used to search multiple values within an array.
+			   If we want search all records that have both 'Beer' an 'Burger' within the array, $ALL Can be used
+			   
+			   @db.accounts.find({Favorites:{$all:['Beer','Burger']}})
+			   
+			   $IN operator for ARRAY
+			   ----------------------
+			   Similar to ALL operator. This looks for 'Either value'.
+			   
+			   @db.accounts.find({Favorites:{$in:['Beer','Burger']}})   ==> return all records that have a value either Beer or Burger.
+		  
+		  DOCUMENT inside a DOCUMENT QUERY
+		  =================================
+		  
+		  {
+			"_id" : ObjectId("52522843d73515d561b3737c"),
+			"name" : "Varun",
+			"email" : {
+					"work" : "varun.raj@ntt.com",
+					"personal" : "varunraj@gmail.com"
+         }
+
+			   
+			email is a document inside the mail document. We need to exactly match both emails to ( including the order ) to return this doc.
+			
+			@db.users.find(email:{'work':'varun.raj@nttdata',personal: 'varunraj82@gmail.com'}) ==> this exact query will return the above doc.
+			
+			Use of DOT notation for searching a doc inside a doc.
+			------------------------------------------------------
+			
+			@db.users.find({'email.work':'varun.raj@ntt.com'})  ==> This will specifically look for the work field inside email. Make sure email.work is given in quotes.
+			
+			Example:
+			---------
+			{ product : "Super Duper-o-phonic", 
+			  price : 100000000000,
+			  reviews : [ { user : "fred", comment : "Great!" , rating : 5 },
+						  { user : "tom" , comment : "I agree with Fred, somewhat!" , rating : 4 } ],
+			  ... }
+					
+			Write a query that finds all products that cost more than 10,000 and that have a rating of 5 or better.
+			   
+		   db.catelog({price:{$gt:10000},reviews.rating:{$gt:5}});
+		   
+		   ***IMP: DOT notation works for both array inside a doc or a doc inside a doc.
+		   
+		   
+		   
+		   
+		   
+		   
+		   
+		   
+		   

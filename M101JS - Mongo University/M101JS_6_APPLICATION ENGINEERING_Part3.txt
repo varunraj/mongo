@@ -1,0 +1,194 @@
+SHARDING
+=========
+
+Sharding is the way we handle horizontal scaling. Approach is to split the whole database into different shards and split the data among themselves. Shards by itself is a replica set. ( Check the diagram sharding )
+
+Let us assume we have 5 shards - S1, S2, S3, S4 and S5 and each of these are replica sets R1, R2 .. . If each replica set have three mongod's, we have a total of 15 servers running to support this structure. 
+
+mongoS: 
+--------
+mongoS is the router that sits between your application and all these replica/shards. mongoS uses a "range based" approach to find the right shard. What that means is, we do sharding a key. For example for an order collection, we do the sharding on order_id. Now we call this order_id as the "shard key" MongoS have some kind of a notion that what range of order_ids are located in which shard. A range of order ids is called a chunk ( more of a dba concept ). There will be a table representing the list of order ids in a chunk. There will be other chunks for other collections. So order id maps to chunk and each chunk maps to a shard. When applications send a query to look for an order id = 10, mongoS will find which chunk this order id is located and then which shard that chunk belongs to.
+
+If shard key is not given from the application to the mongoS, then mongoS will broadcast the query to all mongod's and then aggregate the result in mongoS to find the result. Then respond back to application.
+
+IMP: Once you declare a proporty as shard key, then you must provide that property in all inserts. Otherwise mongoS dont know to which shard this record should be inserted. If you dont provide shard key, it is considerd illegal.
+
+Sharding is declared at a collection level. So if there are few collection you mentioned not to shard, then they all will end up located in Shard 0 (S0)
+
+There could be multiple instances of 'mongoS'. So if one of them goes down, application can connect to another one similar to how replication set works. They are stateless and they usually run on the same logical machine as application.
+
+
+BUILDING A SHARDED ENVIRONMENT
+===============================
+
+    - We are going to create two shards ( S0 and S1 ) and each shard is a replica set of 3 nodes. 
+    - We are also going to create three 'config' servers. These server also run mongod's that keep tracks of the shards. In dev, we need only one congig server.  But for this demo, we are goig to follow the best practice of creating three config servers.
+	
+	- We will create a mongoS
+	- We will create an application that can talk to mongoS.
+	
+	Set Up the directory strucure
+	-------------------------------
+	Add below folder structure to the place where you have your database. For Ubuntu, it will be under /var/lib/mongodb
+	
+	@ cd /var/lib/mongodb
+	@ mkdir shard0
+	@ cd shard0
+	@ mkdir rs0
+	@ mkdir rs1
+	@ mkdir rs2
+	@ cd /var/lib/mongodb
+	@ mkdir shard1
+	@ cd shard1
+	@ mkdir rs0
+	@ mkdir rs1
+	@ mkdir rs2
+
+	Now start a replicaset and tell it that it will be sharded
+	-----------------------------------------------------------
+	
+	mongod --replSet s0 --logpath "S0-R0.log" --dbpath /var/lib/mongodb/shard0/rs0 --port 37017 --fork --smallfiles  --shardsvr
+	mongod --replSet s0 --logpath "S0-R1.log" --dbpath /var/lib/mongodb/shard0/rs1 --port 37018 --fork --smallfiles  --shardsvr
+	mongod --replSet s0 --logpath "S0-R2.log" --dbpath /var/lib/mongodb/shard0/rs2 --port 37019 --fork --smallfiles  --shardsvr
+	
+	// Note the last paramter "shardsvr" to indicate that it is a shard server.
+	
+	Now connect to one of the mongod's from mongo shell and configure the replica's as we did before
+	-------------------------------------------------------------------------------------------------
+	
+	config = { _id: "s0" , members: [
+				{_id:0, host:'ip-10-71-151-139:37017'},
+				{_id:1, host:'ip-10-71-151-139:37018'}, 
+				{_id:2, host:'ip-10-71-151-139:37019'} ]
+			}	
+	
+	Now give the following commands on mongo shell
+	
+		@ rs.initiate(config)
+		@ rs.status()
+
+	Repeat the same steps for Shard 1
+	-----------------------------------	
+	mongod --replSet s1 --logpath "S1-R0.log" --dbpath /var/lib/mongodb/shard1/rs0 --port 47017 --fork --smallfiles  --shardsvr
+	mongod --replSet s1 --logpath "S1-R1.log" --dbpath /var/lib/mongodb/shard1/rs1 --port 47018 --fork --smallfiles  --shardsvr
+	mongod --replSet s1 --logpath "S1-R2.log" --dbpath /var/lib/mongodb/shard1/rs2 --port 47019 --fork --smallfiles  --shardsvr	
+	
+	from mongoshell
+	
+	config = { _id: "s1" , members: [
+				{_id:0, host:'ip-10-71-151-139:47017'},
+				{_id:1, host:'ip-10-71-151-139:47018'}, 
+				{_id:2, host:'ip-10-71-151-139:47019'} ]
+			}	
+			
+	Now give the following commands on mongo shell
+	
+		@ rs.initiate(config)
+		@ rs.status()
+		
+		
+	Now setup 3 config servers
+	---------------------------
+	Create three folders in the db path for each config servers.
+	
+	@ cd /var/lib/mongodb
+	@ mkdir config
+	@ cd config
+	@ mkdir config-a
+	@ mkdir config-b
+	@ mkdir config-c
+	
+	Created a folder config and three subfolder under that for each config servers.
+	
+	Start the config servers as below
+	
+	mongod --logpath "cfg-a.log" --dbpath /var/lib/mongodb/config/config-a --port 57017 --fork --smallfiles  --configsvr
+	mongod --logpath "cfg-b.log" --dbpath /var/lib/mongodb/config/config-b --port 57018 --fork --smallfiles  --configsvr
+	mongod --logpath "cfg-c.log" --dbpath /var/lib/mongodb/config/config-c --port 57019 --fork --smallfiles  --configsvr	
+	
+	// See that last parameter to indicate that it is a config server.
+	
+	Now we need to start the mongoS on standard port ( 27017)
+	---------------------------------------------------------
+	
+	mongos --logpath "mongos-1.log" --configdb  ip-10-71-151-139:57017, ip-10-71-151-139:57018, ip-10-71-151-139:57019 --fork --smallfiles
+	
+	// We pass the configdb parameter to the mongos indicating where our config servers are running. Specify all three.
+	
+	Connect to mongos from mongo shell
+	----------------------------------
+	- Type mongo and it will connect to mongos because we are running mongos on the 27017. If you try to run mongos on a non default port and connect mongo client using that port paramter, it may not work ( this  is indicated in the lecture )
+	
+	Ok .. Now mongo shell talks to mongos and mongos knows about the config servers. But config server dont know about the shards. So we need to give below commands to connect it all together
+	
+		>db.adminCommand({addshard : "s0/ip-10-71-151-139:37017"});
+		>db.adminCommand({addshard : "s1/ip-10-71-151-139:47017"});
+		
+		// Above two commands are adding shards to the mongos and we only need to one node from the shard and the mongos will discover the rest.
+		
+		
+		>db.adminCommand({enableSharding: "test"});
+		
+		// Here we are enabiling the sharding for the "test" database. keep in mind we need to enable it for each database if we need. Else all non sharded db's will end in S0.
+		
+		>db.adminCommand({shardCollection:"test.grades", key:{student_id:1}})
+		
+		// Here we are enabiling the sharding for the grades collection within test database. Again, we need to indicate which collections inside a db needs sharding. Else everything will land in S0.
+		
+		Note: If the student collection does not exist, mongod will create an index in student_id. But if it does exist, we need to ensure than an index is created on the key we are planning to use as shard key.
+		
+		
+	Now check all mongo's running
+	-----------------------------
+	
+		@ps -ef | grep mongod | wc -l
+		
+		==> We will get the result as 10. ( Actaully 9, 10th one the grep command itself)
+		
+	
+	Connect to mongo shell
+	----------------------
+		@mongo
+		mongos > 
+		
+		You will see that when you connect to mongo shell, it got connected to mongos.
+		
+		mongos > sh.help
+		
+		// Display all sharding commands.
+		
+		mongos> sh.status ()    
+		
+		// Display the status of the system. You will see the details like
+		
+				- shards and its details of host that is connected to mongos
+				- databases information
+						- You will see that 'test' database as partioned(sharded) and admin database as not partitioned. 
+				- Details of the chunks
+						- You will various student id ranges and which range goes to which shard.
+		
+		- We can also go to the grades collection stats and see the sharing details there also
+			
+			mongos>db.grads.stats()
+
+					- We will see details of each shard and number of documents on each shard etc
+				
+		query a doc using the shard key 
+		---------------------------------
+			mongos>db.grades.find({student_id:10000})
+				
+					// We can see the results as before.
+					
+					
+			mongos>db.grades.find({student_id:10000}).explain()
+			
+				// Now you can see more detail on explain. See the details on the shard it went to to get the document. It will only go to one shard because, mongos knows which student id range belongs which shard. You will also see within shard, it went used the index on student_id.
+				
+				
+		query a doc without the shard key 
+		---------------------------------
+			mongos>db.grades.find().explain
+									
+					// Now we can see that it went to both the shards to get the doc.
+				
+		
